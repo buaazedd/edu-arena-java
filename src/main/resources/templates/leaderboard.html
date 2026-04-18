@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>排行榜 - 教育大模型对战评测平台</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link href="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<script src="https://cdn.bootcdn.net/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {
+  --navy: #0f172a;
+  --navy-mid: #1e293b;
+  --navy-light: #334155;
+  --blue: #3b82f6;
+  --blue-light: #60a5fa;
+  --blue-pale: #dbeafe;
+  --cyan: #06b6d4;
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --green: #10b981;
+  --cream: #f8fafc;
+  --white: #ffffff;
+  --text-dark: #0f172a;
+  --text-mid: #475569;
+  --text-light: #94a3b8;
+  --border: #e2e8f0;
+  --sidebar-w: 250px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Noto Sans SC', -apple-system, sans-serif;
+  background: var(--cream);
+  color: var(--text-dark);
+}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Sidebar */
+.sidebar {
+  position: fixed; top: 0; left: 0;
+  width: var(--sidebar-w); height: 100vh;
+  background: linear-gradient(180deg, var(--navy) 0%, #0c1220 100%);
+  display: flex; flex-direction: column;
+  z-index: 100;
+}
+.sidebar-logo {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.logo-icon {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; margin-bottom: 12px;
+  box-shadow: 0 4px 12px rgba(59,130,246,.3);
+}
+.sidebar-logo h1 {
+  color: #fff; font-size: 15px; font-weight: 700;
+  line-height: 1.4; letter-spacing: .02em;
+}
+.sidebar-logo p { color: rgba(255,255,255,.4); font-size: 11px; margin-top: 2px; }
+.sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+.nav-label {
+  color: rgba(255,255,255,.25); font-size: 10px; font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase;
+  padding: 12px 12px 6px;
+}
+.sidebar-link {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-radius: 10px;
+  color: rgba(255,255,255,.55); text-decoration: none;
+  font-size: 14px; transition: all .2s; margin-bottom: 2px;
+}
+.sidebar-link i { width: 18px; text-align: center; font-size: 15px; }
+.sidebar-link:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.9); }
+.sidebar-link.active {
+  background: linear-gradient(135deg, rgba(59,130,246,.2), rgba(6,182,212,.1));
+  color: #fff; font-weight: 500;
+  border: 1px solid rgba(59,130,246,.2);
+}
+.sidebar-link.active i { color: var(--blue-light); }
+.sidebar-bottom {
+  padding: 16px 12px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+.user-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(255,255,255,.04);
+}
+.user-avatar {
+  width: 34px; height: 34px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: #fff; font-weight: 600;
+}
+.user-info { flex: 1; min-width: 0; }
+.user-name { color: #fff; font-size: 13px; font-weight: 500; display: block; }
+.user-role { color: rgba(255,255,255,.35); font-size: 11px; }
+.logout-btn {
+  background: none; border: none; color: rgba(255,255,255,.3);
+  font-size: 14px; cursor: pointer; padding: 6px; border-radius: 6px;
+}
+.logout-btn:hover { color: var(--red); background: rgba(239,68,68,.1); }
+
+/* Main */
+.main-content {
+  margin-left: var(--sidebar-w);
+  min-height: 100vh;
+}
+.page-header {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 32px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.page-header h2 {
+  font-size: 20px; font-weight: 700; color: var(--text-dark);
+}
+.page-header .subtitle {
+  color: var(--text-mid); font-size: 13px; margin-top: 2px;
+}
+.page-body { padding: 24px 32px; }
+
+/* Cards */
+.card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.card-body { padding: 20px; }
+.card-title-sm {
+  font-size: 12px; font-weight: 600; color: var(--text-light);
+  text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px;
+}
+
+/* Stat Cards */
+.stat-card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px;
+  transition: transform .2s, box-shadow .2s;
+}
+.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.06); }
+.stat-icon {
+  width: 42px; height: 42px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; margin-bottom: 12px;
+}
+.stat-value { font-size: 28px; font-weight: 700; color: var(--text-dark); line-height: 1; }
+.stat-label { font-size: 12px; color: var(--text-light); margin-top: 6px; }
+
+/* Buttons */
+.btn-primary-custom {
+  background: linear-gradient(135deg, var(--blue), #2563eb);
+  border: none; color: #fff; font-weight: 500;
+  border-radius: 10px; padding: 10px 24px; font-size: 14px;
+  transition: all .2s; cursor: pointer;
+}
+.btn-primary-custom:hover {
+  transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,.3);
+  color: #fff;
+}
+.btn-outline-custom {
+  border: 1.5px solid var(--border); color: var(--text-mid);
+  background: transparent; border-radius: 10px; padding: 9px 20px;
+  font-size: 13px; font-weight: 500; transition: all .2s; cursor: pointer;
+}
+.btn-outline-custom:hover { border-color: var(--blue); color: var(--blue); }
+
+/* Badge */
+.badge-blue { background: var(--blue-pale); color: var(--blue); font-weight: 500; }
+.badge-green { background: #d1fae5; color: #059669; font-weight: 500; }
+.badge-amber { background: #fef3c7; color: #d97706; font-weight: 500; }
+.badge-red { background: #fee2e2; color: #dc2626; font-weight: 500; }
+
+/* Table */
+.table-custom th {
+  font-size: 12px; font-weight: 600; color: var(--text-light);
+  text-transform: uppercase; letter-spacing: .06em;
+  border-bottom: 2px solid var(--border); padding: 12px 16px;
+}
+.table-custom td {
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  font-size: 14px; vertical-align: middle;
+}
+.table-custom tr:hover { background: #f8fafc; }
+
+/* Toast */
+#toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; }
+.toast-msg {
+  background: var(--navy); color: #fff;
+  padding: 12px 20px; border-radius: 10px;
+  font-size: 13px; margin-top: 8px;
+  opacity: 0; transform: translateY(10px);
+  animation: toastIn .3s forwards, toastOut .3s 2.5s forwards;
+  box-shadow: 0 8px 24px rgba(0,0,0,.2);
+}
+.toast-msg.error { background: var(--red); }
+.toast-msg.success { background: var(--green); }
+@keyframes toastIn { to { opacity:1; transform:none } }
+@keyframes toastOut { to { opacity:0; transform:translateY(10px) } }
+
+/* Loading */
+.loading-spinner {
+  display: inline-block; width: 40px; height: 40px;
+  border: 3px solid var(--border); border-radius: 50%;
+  border-top-color: var(--blue);
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Leaderboard specific styles */
+.rank-badge {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 14px; color: #fff;
+}
+.rank-1 { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
+.rank-2 { background: linear-gradient(135deg, #9ca3af, #6b7280); }
+.rank-3 { background: linear-gradient(135deg, #d97706, #b45309); }
+.rank-other { background: var(--navy-light); }
+.elo-bar {
+  height: 6px; border-radius: 3px; background: var(--border);
+  position: relative; overflow: hidden;
+}
+.elo-bar-fill {
+  height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--blue), var(--cyan));
+  transition: width .5s ease;
+}
+.company-tag {
+  font-size: 11px; padding: 2px 8px; border-radius: 12px;
+  background: #f1f5f9; color: var(--text-mid); font-weight: 500;
+}
+.new-badge {
+  font-size: 10px; padding: 1px 6px; border-radius: 8px;
+  background: #fef3c7; color: #d97706; font-weight: 600;
+}
+.chart-container {
+  position: relative; height: 300px;
+}
+
+/* Model row hover */
+.model-row {
+  cursor: pointer;
+  transition: background .15s;
+}
+.model-row:hover {
+  background: #f8fafc;
+}
+
+/* Model detail modal */
+.model-modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.model-modal.show {
+  display: flex;
+}
+.model-modal-content {
+  background: #fff;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,.2);
+}
+.model-modal-header {
+  padding: 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.model-modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+.model-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-light);
+  padding: 4px;
+}
+.model-modal-body {
+  padding: 24px;
+}
+.model-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.model-detail-stat {
+  text-align: center;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+}
+.model-detail-stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+.model-detail-stat-label {
+  font-size: 12px;
+  color: var(--text-light);
+  margin-top: 4px;
+}
+.model-detail-section {
+  margin-bottom: 24px;
+}
+.model-detail-section h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-mid);
+  margin-bottom: 12px;
+}
+.model-detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.model-detail-row:last-child {
+  border-bottom: none;
+}
+.model-detail-label {
+  color: var(--text-mid);
+  font-size: 13px;
+}
+.model-detail-value {
+  color: var(--text-dark);
+  font-size: 13px;
+  font-weight: 500;
+}
+.model-tags-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.model-tag-detail {
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  background: #f1f5f9;
+  color: var(--text-mid);
+}
+.model-tag-detail.multimodal { background: #dbeafe; color: #2563eb; }
+.model-tag-detail.vision { background: #fce7f3; color: #db2777; }
+
+/* Company gradient */
+.company-gradient-openai { background: linear-gradient(135deg, #10a37f20, #10a37f10); }
+.company-gradient-anthropic { background: linear-gradient(135deg, #d9770620, #d9770610); }
+.company-gradient-google { background: linear-gradient(135deg, #4285f420, #4285f410); }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar { width: 60px; }
+  .sidebar-logo h1, .sidebar-logo p, .sidebar-link span,
+  .nav-label, .user-name, .user-role { display: none; }
+  .sidebar-logo { padding: 16px 8px; }
+  .logo-icon { margin: 0 auto; }
+  .sidebar-link { justify-content: center; padding: 12px; }
+  .user-card { justify-content: center; padding: 8px; }
+  .main-content { margin-left: 60px; }
+  .page-body { padding: 16px; }
+}
+
+.text-muted { color: var(--text-light); }
+.text-center { text-align: center; }
+.py-4 { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-4 { margin-bottom: 1.5rem; }
+.mt-3 { margin-top: 1rem; }
+.g-3 { gap: 1rem; }
+.p-0 { padding: 0; }
+.rounded-pill { border-radius: 50rem; }
+.px-3 { padding-left: 1rem; padding-right: 1rem; }
+.py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.me-1 { margin-right: 0.25rem; }
+.ms-1 { margin-left: 0.25rem; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">🏟️</div>
+    <h1>教育大模型对战评测</h1>
+    <p>作文批改 · 众包评测</p>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-label">评测功能</div>
+    <a href="/battle" class="sidebar-link">
+      <i class="fa-solid fa-swords" style="font-size:14px;">⚔</i> <span>对战评测</span>
+    </a>
+    <a href="/leaderboard" class="sidebar-link active">
+      <i class="fa-solid fa-trophy"></i> <span>排行榜</span>
+    </a>
+    <a href="/history" class="sidebar-link">
+      <i class="fa-solid fa-clock-rotate-left"></i> <span>对战历史</span>
+    </a>
+    <div class="nav-label" id="adminNavLabel" style="display:none;">管理功能</div>
+    <a href="/admin" class="sidebar-link" id="adminNavLink" style="display:none;">
+      <i class="fa-solid fa-gear"></i> <span>后台管理</span>
+    </a>
+    <script>
+    if(localStorage.getItem('userRole')==='admin'){
+      document.getElementById('adminNavLabel').style.display='';
+      document.getElementById('adminNavLink').style.display='';
+    }
+    </script>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="user-card">
+      <div class="user-avatar" id="sidebarAvatar">U</div>
+      <div class="user-info">
+        <span class="user-name" id="sidebarName">加载中</span>
+        <span class="user-role" id="sidebarRole">教师</span>
+      </div>
+      <button class="logout-btn" onclick="doLogout()" title="退出登录">
+        <i class="fa fa-right-from-bracket"></i>
+      </button>
+    </div>
+  </div>
+</div>
+<div class="main-content">
+  <div class="page-header">
+    <div>
+      <h2>🏆 模型排行榜</h2>
+      <div class="subtitle">基于 Elo 动态排名算法，根据教师投票结果实时更新</div>
+    </div>
+    <button class="btn-outline-custom" onclick="loadData()">
+      <i class="fa fa-refresh me-1"></i> 刷新
+    </button>
+  </div>
+
+  <div class="page-body">
+    <!-- Stats Row -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3 col-6">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#dbeafe; color:var(--blue);">
+            <i class="fa fa-robot"></i>
+          </div>
+          <div class="stat-value" id="statModels">-</div>
+          <div class="stat-label">参与模型数</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#d1fae5; color:var(--green);">
+            <i class="fa fa-shield"></i>
+          </div>
+          <div class="stat-value" id="statBattles">-</div>
+          <div class="stat-label">总对战数</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#fef3c7; color:var(--amber);">
+            <i class="fa fa-star"></i>
+          </div>
+          <div class="stat-value" id="statTopElo">-</div>
+          <div class="stat-label">最高 Elo 分</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#fee2e2; color:var(--red);">
+            <i class="fa fa-chart-line"></i>
+          </div>
+          <div class="stat-value" id="statAvgElo">-</div>
+          <div class="stat-label">平均 Elo 分</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Elo Trend Chart -->
+    <div class="card mb-4">
+      <div class="card-body">
+          <div class="card-title-sm">📈 Elo 分数趋势（点击模型查看详情）</div>
+        <div class="chart-container">
+          <canvas id="eloChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ranking Table -->
+    <div class="card">
+      <div class="card-body p-0">
+        <table class="table table-custom mb-0">
+          <thead>
+            <tr>
+              <th style="width:60px;">排名</th>
+              <th>模型</th>
+              <th>公司</th>
+              <th>Elo 分数</th>
+              <th style="width:160px;">Elo 分布</th>
+              <th>对战数</th>
+              <th>胜率</th>
+              <th>胜/负/平</th>
+            </tr>
+          </thead>
+          <tbody id="rankTable">
+            <tr><td colspan="8" class="text-center text-muted py-4">
+              <div class="loading-spinner mb-2"></div><br>加载中...
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Model Detail Modal -->
+<div class="model-modal" id="modelModal" onclick="closeModelModal(event)">
+  <div class="model-modal-content" onclick="event.stopPropagation()">
+    <div class="model-modal-header">
+      <h3 id="modalModelName">模型详情</h3>
+      <button class="model-modal-close" onclick="closeModelModal()">&times;</button>
+    </div>
+    <div class="model-modal-body">
+      <div class="model-detail-stats">
+        <div class="model-detail-stat">
+          <div class="model-detail-stat-value" id="modalElo">-</div>
+          <div class="model-detail-stat-label">Elo 分数</div>
+        </div>
+        <div class="model-detail-stat">
+          <div class="model-detail-stat-value" id="modalMatches">-</div>
+          <div class="model-detail-stat-label">对战次数</div>
+        </div>
+        <div class="model-detail-stat">
+          <div class="model-detail-stat-value" id="modalWinRate">-</div>
+          <div class="model-detail-stat-label">胜率</div>
+        </div>
+      </div>
+      
+      <div class="model-detail-section">
+        <h4>模型信息</h4>
+        <div class="model-detail-row">
+          <span class="model-detail-label">模型 ID</span>
+          <span class="model-detail-value" id="modalModelId">-</span>
+        </div>
+        <div class="model-detail-row">
+          <span class="model-detail-label">公司</span>
+          <span class="model-detail-value" id="modalCompany">-</span>
+        </div>
+        <div class="model-detail-row">
+          <span class="model-detail-label">上下文长度</span>
+          <span class="model-detail-value" id="modalContextLength">-</span>
+        </div>
+        <div class="model-detail-row">
+          <span class="model-detail-label">最大输出</span>
+          <span class="model-detail-value" id="modalMaxOutput">-</span>
+        </div>
+        <div class="model-detail-row">
+          <span class="model-detail-label">输入价格</span>
+          <span class="model-detail-value" id="modalInputPrice">-</span>
+        </div>
+        <div class="model-detail-row">
+          <span class="model-detail-label">输出价格</span>
+          <span class="model-detail-value" id="modalOutputPrice">-</span>
+        </div>
+      </div>
+      
+      <div class="model-detail-section">
+        <h4>能力标签</h4>
+        <div class="model-tags-detail" id="modalTags">
+          <span class="model-tag-detail">加载中...</span>
+        </div>
+      </div>
+      
+      <div class="model-detail-section">
+        <h4>对战统计</h4>
+        <div class="model-detail-row">
+          <span class="model-detail-label">胜利</span>
+          <span class="model-detail-value" style="color:var(--green);" id="modalWins">-</span>
+        </div>
+        <div class="model-detail-row">
+          <span class="model-detail-label">失败</span>
+          <span class="model-detail-value" style="color:var(--red);" id="modalLoses">-</span>
+        </div>
+        <div class="model-detail-row">
+          <span class="model-detail-label">平局</span>
+          <span class="model-detail-value" id="modalTies">-</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+<script>
+function showToast(msg, type='') {
+  const c = document.getElementById('toast-container');
+  const d = document.createElement('div');
+  d.className = 'toast-msg ' + type;
+  d.textContent = msg;
+  c.appendChild(d);
+  setTimeout(() => d.remove(), 3000);
+}
+
+function getAuthHeaders() {
+  const token = localStorage.getItem('token');
+  const headers = {'Content-Type':'application/json'};
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return headers;
+}
+
+async function apiPost(url, data) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+  const json = await r.json();
+  if (json.code === 401) { localStorage.clear(); location.href = '/'; throw {error: '请先登录'}; }
+  if (!r.ok || json.code !== 200) throw {error: json.message || '请求失败'};
+  return json;
+}
+
+async function apiGet(url) {
+  const r = await fetch(url, {headers: getAuthHeaders()});
+  const json = await r.json();
+  if (json.code === 401) { localStorage.clear(); location.href = '/'; throw {error: '请先登录'}; }
+  if (!r.ok || json.code !== 200) throw {error: json.message || '请求失败'};
+  return json;
+}
+
+async function doLogout() {
+  try { await fetch('/api/logout', {method:'POST', headers: getAuthHeaders()}); } catch(e) {}
+  localStorage.clear();
+  location.href = '/';
+}
+
+async function initSidebar() {
+  // 先从 localStorage 立即显示管理员按钮（避免延迟）
+  const cachedRole = localStorage.getItem('userRole');
+  if (cachedRole === 'admin') {
+    document.getElementById('adminNavLabel').style.display = '';
+    document.getElementById('adminNavLink').style.display = '';
+  }
+  
+  // 异步从服务器获取最新用户信息
+  try {
+    const resp = await apiGet('/api/me');
+    const u = resp.data || resp;
+    document.getElementById('sidebarName').textContent = u.displayName || u.display_name || u.username;
+    document.getElementById('sidebarAvatar').textContent = (u.displayName || u.display_name || u.username)[0].toUpperCase();
+    const roleMap = {admin: '管理员', teacher: '教师'};
+    document.getElementById('sidebarRole').textContent = roleMap[u.role] || u.role;
+    // 再次确认角色（防止本地缓存过期）
+    if (u.role === 'admin') {
+      document.getElementById('adminNavLabel').style.display = '';
+      document.getElementById('adminNavLink').style.display = '';
+      localStorage.setItem('userRole', 'admin');
+    } else {
+      document.getElementById('adminNavLabel').style.display = 'none';
+      document.getElementById('adminNavLink').style.display = 'none';
+      localStorage.setItem('userRole', u.role || 'teacher');
+    }
+  } catch(e) {}
+}
+initSidebar();
+
+let eloChart = null;
+let allModels = [];
+let eloHistoryData = {};
+
+async function loadData() {
+  try {
+    const res = await apiGet('/api/leaderboard');
+    const data = res.data;
+    allModels = data;
+    renderTable(data);
+    renderStats(data);
+    loadEloHistory();
+  } catch(e) {
+    showToast('加载失败', 'error');
+  }
+}
+
+function renderTable(data) {
+  const tbody = document.getElementById('rankTable');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无数据，请先进行对战评测</td></tr>';
+    return;
+  }
+
+  const maxElo = Math.max(...data.map(d => d.elo_score));
+  const minElo = Math.min(...data.map(d => d.elo_score));
+  const range = maxElo - minElo || 1;
+
+  tbody.innerHTML = data.map((m, idx) => {
+    const rankClass = m.rank <= 3 ? `rank-${m.rank}` : 'rank-other';
+    const pct = ((m.elo_score - minElo) / range * 80 + 20).toFixed(0);
+    const winRateColor = m.win_rate > 50 ? 'var(--green)' : m.win_rate < 40 ? 'var(--red)' : 'var(--text-mid)';
+    
+    return `<tr class="model-row" onclick="showModelDetail(${idx})">
+      <td><span class="rank-badge ${rankClass}">${m.rank}</span></td>
+      <td>
+        <strong>${m.name}</strong>
+        ${m.is_new ? '<span class="new-badge ms-1">NEW</span>' : ''}
+      </td>
+      <td><span class="company-tag">${m.company}</span></td>
+      <td><strong style="font-size:16px;">${m.elo_score}</strong></td>
+      <td>
+        <div class="elo-bar"><div class="elo-bar-fill" style="width:${pct}%"></div></div>
+      </td>
+      <td>${m.total_matches}</td>
+      <td>
+        <span style="color:${winRateColor}; font-weight:600;">
+          ${m.win_rate}%
+        </span>
+      </td>
+      <td>
+        <span style="color:var(--green)">${m.win_count}</span> /
+        <span style="color:var(--red)">${m.lose_count}</span> /
+        <span style="color:var(--text-light)">${m.tie_count}</span>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderStats(data) {
+  document.getElementById('statModels').textContent = data.length;
+  const totalBattles = data.reduce((s, m) => s + m.total_matches, 0) / 2;
+  document.getElementById('statBattles').textContent = Math.round(totalBattles);
+  if (data.length) {
+    document.getElementById('statTopElo').textContent = data[0].elo_score;
+    const avg = data.reduce((s, m) => s + m.elo_score, 0) / data.length;
+    document.getElementById('statAvgElo').textContent = avg.toFixed(0);
+  }
+}
+
+async function loadEloHistory() {
+  try {
+    const res = await apiGet('/api/leaderboard/elo_history');
+    const data = res.data;
+    eloHistoryData = data || {};
+    renderEloChart(eloHistoryData);
+  } catch(e) {
+    console.log('Elo history not available');
+  }
+}
+
+function renderEloChart(data) {
+  const ctx = document.getElementById('eloChart').getContext('2d');
+  if (eloChart) eloChart.destroy();
+  if (!data || typeof data !== 'object') return;
+
+  const colors = [
+    '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
+    '#06b6d4', '#ec4899', '#14b8a6', '#f97316', '#6366f1',
+    '#84cc16', '#e11d48', '#0ea5e9', '#a855f7', '#eab308'
+  ];
+
+  const modelNames = Object.keys(data).filter(n => Array.isArray(data[n]) && data[n].length > 0).slice(0, 10);
+  if (!modelNames.length) return;
+
+  // 1) 按模型整理 battle_id -> score 的映射
+  const modelPointMap = new Map();
+  const battleSet = new Set();
+
+  for (const name of modelNames) {
+    const history = data[name] || [];
+    const pointMap = new Map();
+
+    for (const h of history) {
+      if (!h) continue;
+      const battleId = Number(h.battle_id);
+      const score = Number(h.score);
+      if (Number.isNaN(battleId) || Number.isNaN(score)) continue;
+
+      pointMap.set(battleId, score);
+      battleSet.add(battleId);
+    }
+
+    modelPointMap.set(name, pointMap);
+  }
+
+  const allBattles = Array.from(battleSet).sort((a, b) => a - b);
+  if (!allBattles.length) return;
+
+  // 2) 全局 battle 轴前向填充：没变化的模型沿用上一场 Elo
+  const datasets = [];
+  let idx = 0;
+
+  for (const name of modelNames) {
+    const pointMap = modelPointMap.get(name) || new Map();
+    let lastScore = null;
+    const series = [];
+
+    for (const battleId of allBattles) {
+      if (pointMap.has(battleId)) {
+        lastScore = pointMap.get(battleId);
+      }
+      if (lastScore !== null) {
+        series.push({ x: battleId, y: lastScore });
+      }
+    }
+
+    if (!series.length) continue;
+
+    datasets.push({
+      label: name,
+      data: series,
+      borderColor: colors[idx % colors.length],
+      backgroundColor: colors[idx % colors.length] + '20',
+      borderWidth: 2.2,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      pointHitRadius: 8,
+      tension: 0,
+      spanGaps: true,
+      fill: false
+    });
+    idx++;
+  }
+
+  if (!datasets.length) return;
+
+  eloChart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      parsing: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            font: { size: 11 },
+            usePointStyle: true,
+            padding: 16,
+            cursor: 'pointer'
+          },
+          onClick: function(e, legendItem, legend) {
+            const modelName = legendItem.text;
+            const modelIdx = allModels.findIndex(m => m.name === modelName);
+            if (modelIdx >= 0) {
+              showModelDetail(modelIdx);
+            }
+          }
+        },
+        tooltip: {
+          callbacks: {
+            title: function(items) {
+              const x = items?.[0]?.parsed?.x;
+              if (!x) return '';
+              return `总对战第 ${x} 场`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: '总对战次数' },
+          grid: { display: false },
+          ticks: { precision: 0, maxTicksLimit: 8 }
+        },
+        y: {
+          title: { display: true, text: 'Elo 分数' },
+          grid: { color: '#f1f5f9' }
+        }
+      },
+      interaction: { mode: 'index', intersect: false }
+    }
+  });
+}
+
+function showModelDetail(idx) {
+  const m = allModels[idx];
+  if (!m) return;
+  
+  document.getElementById('modalModelName').textContent = m.name;
+  document.getElementById('modalElo').textContent = m.elo_score || 1500;
+  document.getElementById('modalMatches').textContent = m.total_matches || 0;
+  document.getElementById('modalWinRate').textContent = m.win_rate + '%';
+  document.getElementById('modalModelId').textContent = m.model_id || '-';
+  document.getElementById('modalCompany').textContent = m.company || '-';
+  document.getElementById('modalContextLength').textContent = formatNumber(m.context_length);
+  document.getElementById('modalMaxOutput').textContent = formatNumber(m.max_output);
+  document.getElementById('modalInputPrice').textContent = formatPrice(m.input_price);
+  document.getElementById('modalOutputPrice').textContent = formatPrice(m.output_price);
+  document.getElementById('modalWins').textContent = m.win_count || 0;
+  document.getElementById('modalLoses').textContent = m.lose_count || 0;
+  document.getElementById('modalTies').textContent = m.tie_count || 0;
+  
+  // Tags
+  const tags = [];
+  if (m.input_modalities) {
+    if (m.input_modalities.includes('image') || m.input_modalities.includes('vision')) {
+      tags.push('<span class="model-tag-detail vision">视觉理解</span>');
+    }
+    if (m.input_modalities.includes('text')) {
+      tags.push('<span class="model-tag-detail">文本输入</span>');
+    }
+  }
+  if (m.features) {
+    if (m.features.includes('tool')) {
+      tags.push('<span class="model-tag-detail multimodal">工具调用</span>');
+    }
+    if (m.features.includes('stream')) {
+      tags.push('<span class="model-tag-detail">流式输出</span>');
+    }
+  }
+  document.getElementById('modalTags').innerHTML = tags.length ? tags.join('') : '<span class="model-tag-detail">暂无标签</span>';
+  
+  document.getElementById('modelModal').classList.add('show');
+}
+
+function closeModelModal(e) {
+  if (e && e.target !== document.getElementById('modelModal')) return;
+  document.getElementById('modelModal').classList.remove('show');
+}
+
+function formatNumber(num) {
+  if (!num) return '-';
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(0) + 'K';
+  return num.toString();
+}
+
+function formatPrice(price) {
+  if (!price) return '-';
+  if (price < 0.01) return '$' + (price * 1000).toFixed(2) + '/M';
+  return '$' + price.toFixed(4) + '/K';
+}
+
+// Keyboard shortcut
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeModelModal();
+  }
+});
+
+loadData();
+</script>
+</body>
+</html>

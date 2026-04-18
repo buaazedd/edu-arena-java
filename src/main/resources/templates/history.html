@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>对战历史 - 教育大模型对战评测平台</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link href="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<style>
+:root {
+  --navy: #0f172a;
+  --navy-mid: #1e293b;
+  --navy-light: #334155;
+  --blue: #3b82f6;
+  --blue-light: #60a5fa;
+  --blue-pale: #dbeafe;
+  --cyan: #06b6d4;
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --green: #10b981;
+  --cream: #f8fafc;
+  --white: #ffffff;
+  --text-dark: #0f172a;
+  --text-mid: #475569;
+  --text-light: #94a3b8;
+  --border: #e2e8f0;
+  --sidebar-w: 250px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Noto Sans SC', -apple-system, sans-serif;
+  background: var(--cream);
+  color: var(--text-dark);
+}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Sidebar */
+.sidebar {
+  position: fixed; top: 0; left: 0;
+  width: var(--sidebar-w); height: 100vh;
+  background: linear-gradient(180deg, var(--navy) 0%, #0c1220 100%);
+  display: flex; flex-direction: column;
+  z-index: 100;
+}
+.sidebar-logo {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.logo-icon {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; margin-bottom: 12px;
+  box-shadow: 0 4px 12px rgba(59,130,246,.3);
+}
+.sidebar-logo h1 {
+  color: #fff; font-size: 15px; font-weight: 700;
+  line-height: 1.4; letter-spacing: .02em;
+}
+.sidebar-logo p { color: rgba(255,255,255,.4); font-size: 11px; margin-top: 2px; }
+.sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+.nav-label {
+  color: rgba(255,255,255,.25); font-size: 10px; font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase;
+  padding: 12px 12px 6px;
+}
+.sidebar-link {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-radius: 10px;
+  color: rgba(255,255,255,.55); text-decoration: none;
+  font-size: 14px; transition: all .2s; margin-bottom: 2px;
+}
+.sidebar-link i { width: 18px; text-align: center; font-size: 15px; }
+.sidebar-link:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.9); }
+.sidebar-link.active {
+  background: linear-gradient(135deg, rgba(59,130,246,.2), rgba(6,182,212,.1));
+  color: #fff; font-weight: 500;
+  border: 1px solid rgba(59,130,246,.2);
+}
+.sidebar-link.active i { color: var(--blue-light); }
+.sidebar-bottom {
+  padding: 16px 12px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+.user-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(255,255,255,.04);
+}
+.user-avatar {
+  width: 34px; height: 34px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: #fff; font-weight: 600;
+}
+.user-info { flex: 1; min-width: 0; }
+.user-name { color: #fff; font-size: 13px; font-weight: 500; display: block; }
+.user-role { color: rgba(255,255,255,.35); font-size: 11px; }
+.logout-btn {
+  background: none; border: none; color: rgba(255,255,255,.3);
+  font-size: 14px; cursor: pointer; padding: 6px; border-radius: 6px;
+}
+.logout-btn:hover { color: var(--red); background: rgba(239,68,68,.1); }
+
+/* Main */
+.main-content {
+  margin-left: var(--sidebar-w);
+  min-height: 100vh;
+}
+.page-header {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 32px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.page-header h2 {
+  font-size: 20px; font-weight: 700; color: var(--text-dark);
+}
+.page-header .subtitle {
+  color: var(--text-mid); font-size: 13px; margin-top: 2px;
+}
+.page-body { padding: 24px 32px; }
+
+/* Cards */
+.card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.card-body { padding: 20px; }
+.card-title-sm {
+  font-size: 12px; font-weight: 600; color: var(--text-light);
+  text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px;
+}
+
+/* Buttons */
+.btn-primary-custom {
+  background: linear-gradient(135deg, var(--blue), #2563eb);
+  border: none; color: #fff; font-weight: 500;
+  border-radius: 10px; padding: 10px 24px; font-size: 14px;
+  transition: all .2s; cursor: pointer;
+}
+.btn-outline-custom {
+  border: 1.5px solid var(--border); color: var(--text-mid);
+  background: transparent; border-radius: 10px; padding: 9px 20px;
+  font-size: 13px; font-weight: 500; transition: all .2s; cursor: pointer;
+}
+.btn-outline-custom:hover { border-color: var(--blue); color: var(--blue); }
+
+/* Badge */
+.badge-blue { background: var(--blue-pale); color: var(--blue); font-weight: 500; }
+.badge-green { background: #d1fae5; color: #059669; font-weight: 500; }
+.badge-amber { background: #fef3c7; color: #d97706; font-weight: 500; }
+.badge-red { background: #fee2e2; color: #dc2626; font-weight: 500; }
+
+/* Table */
+.table-custom th {
+  font-size: 12px; font-weight: 600; color: var(--text-light);
+  text-transform: uppercase; letter-spacing: .06em;
+  border-bottom: 2px solid var(--border); padding: 12px 16px;
+}
+.table-custom td {
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  font-size: 14px; vertical-align: middle;
+}
+.table-custom tr:hover { background: #f8fafc; }
+
+/* Toast */
+#toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; }
+.toast-msg {
+  background: var(--navy); color: #fff;
+  padding: 12px 20px; border-radius: 10px;
+  font-size: 13px; margin-top: 8px;
+  opacity: 0; transform: translateY(10px);
+  animation: toastIn .3s forwards, toastOut .3s 2.5s forwards;
+  box-shadow: 0 8px 24px rgba(0,0,0,.2);
+}
+.toast-msg.error { background: var(--red); }
+.toast-msg.success { background: var(--green); }
+@keyframes toastIn { to { opacity:1; transform:none } }
+@keyframes toastOut { to { opacity:0; transform:translateY(10px) } }
+
+/* Loading */
+.loading-spinner {
+  display: inline-block; width: 40px; height: 40px;
+  border: 3px solid var(--border); border-radius: 50%;
+  border-top-color: var(--blue);
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Markdown content */
+.md-content h1, .md-content h2, .md-content h3 {
+  margin-top: 16px; margin-bottom: 8px; font-weight: 600;
+}
+.md-content h2 { font-size: 16px; }
+.md-content h3 { font-size: 14px; }
+.md-content p { margin-bottom: 8px; line-height: 1.7; font-size: 14px; }
+.md-content ul, .md-content ol { padding-left: 20px; margin-bottom: 8px; }
+.md-content li { margin-bottom: 4px; font-size: 14px; }
+.md-content strong { color: var(--text-dark); }
+.md-content blockquote {
+  border-left: 3px solid var(--blue); padding: 8px 16px;
+  background: var(--blue-pale); border-radius: 0 8px 8px 0;
+  margin: 8px 0;
+}
+.md-content code {
+  background: #f1f5f9; padding: 2px 6px; border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace; font-size: 13px;
+}
+
+/* History specific styles */
+.history-row {
+  cursor: pointer;
+  transition: background .15s;
+}
+.history-row:hover {
+  background: #f8fafc;
+}
+
+/* Battle detail modal */
+.battle-modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.battle-modal.show {
+  display: flex;
+}
+.battle-modal-content {
+  background: #fff;
+  border-radius: 16px;
+  width: 95%;
+  max-width: 1000px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,.2);
+}
+.battle-modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 1;
+}
+.battle-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+.battle-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-light);
+  padding: 4px;
+}
+.battle-modal-body {
+  padding: 24px;
+}
+.battle-info-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+}
+.battle-responses {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.battle-response-panel {
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.battle-response-panel.winner {
+  border-color: var(--green);
+  background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+}
+.battle-response-panel.loser {
+  border-color: var(--red);
+  opacity: .8;
+}
+.battle-response-header {
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.battle-response-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.battle-response-label .icon {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: #fff;
+}
+.battle-response-label .icon.a { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+.battle-response-label .icon.b { background: linear-gradient(135deg, #f59e0b, #ef4444); }
+.battle-response-body {
+  padding: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.battle-winner-badge {
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.battle-winner-badge.win { background: #dcfce7; color: #16a34a; }
+.battle-winner-badge.lose { background: #fee2e2; color: #dc2626; }
+
+.company-tag {
+  font-size: 11px; padding: 2px 8px; border-radius: 12px;
+  background: #f1f5f9; color: var(--text-mid); font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .battle-responses { grid-template-columns: 1fr; }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar { width: 60px; }
+  .sidebar-logo h1, .sidebar-logo p, .sidebar-link span,
+  .nav-label, .user-name, .user-role { display: none; }
+  .sidebar-logo { padding: 16px 8px; }
+  .logo-icon { margin: 0 auto; }
+  .sidebar-link { justify-content: center; padding: 12px; }
+  .user-card { justify-content: center; padding: 8px; }
+  .main-content { margin-left: 60px; }
+  .page-body { padding: 16px; }
+}
+
+.text-muted { color: var(--text-light); }
+.text-center { text-align: center; }
+.py-4 { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mt-3 { margin-top: 1rem; }
+.mb-3 { margin-bottom: 1rem; }
+.g-3 { gap: 1rem; }
+.p-0 { padding: 0; }
+.rounded-pill { border-radius: 50rem; }
+.px-3 { padding-left: 1rem; padding-right: 1rem; }
+.py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.me-1 { margin-right: 0.25rem; }
+.ms-1 { margin-left: 0.25rem; }
+.me-2 { margin-right: 0.5rem; }
+.ms-2 { margin-left: 0.5rem; }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.d-flex { display: flex; }
+.justify-content-between { justify-content: space-between; }
+.align-items-center { align-items: center; }
+.gap-2 { gap: 0.5rem; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">🏟️</div>
+    <h1>教育大模型对战评测</h1>
+    <p>作文批改 · 众包评测</p>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-label">评测功能</div>
+    <a href="/battle" class="sidebar-link">
+      <i class="fa-solid fa-swords" style="font-size:14px;">⚔</i> <span>对战评测</span>
+    </a>
+    <a href="/leaderboard" class="sidebar-link">
+      <i class="fa-solid fa-trophy"></i> <span>排行榜</span>
+    </a>
+    <a href="/history" class="sidebar-link active">
+      <i class="fa-solid fa-clock-rotate-left"></i> <span>对战历史</span>
+    </a>
+    <div class="nav-label" id="adminNavLabel" style="display:none;">管理功能</div>
+    <a href="/admin" class="sidebar-link" id="adminNavLink" style="display:none;">
+      <i class="fa-solid fa-gear"></i> <span>后台管理</span>
+    </a>
+    <script>
+    if(localStorage.getItem('userRole')==='admin'){
+      document.getElementById('adminNavLabel').style.display='';
+      document.getElementById('adminNavLink').style.display='';
+    }
+    </script>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="user-card">
+      <div class="user-avatar" id="sidebarAvatar">U</div>
+      <div class="user-info">
+        <span class="user-name" id="sidebarName">加载中</span>
+        <span class="user-role" id="sidebarRole">教师</span>
+      </div>
+      <button class="logout-btn" onclick="doLogout()" title="退出登录">
+        <i class="fa fa-right-from-bracket"></i>
+      </button>
+    </div>
+  </div>
+</div>
+<div class="main-content">
+  <div class="page-header">
+    <div>
+      <h2>📋 对战历史</h2>
+      <div class="subtitle">查看所有已完成的对战评测记录（点击查看详情）</div>
+    </div>
+  </div>
+
+  <div class="page-body">
+    <div class="card">
+      <div class="card-body p-0">
+        <table class="table table-custom mb-0">
+          <thead>
+            <tr>
+              <th style="width:60px;">#</th>
+              <th>作文题目</th>
+              <th>学段</th>
+              <th>模型 A</th>
+              <th>模型 B</th>
+              <th>获胜方</th>
+              <th>匹配方式</th>
+              <th>时间</th>
+            </tr>
+          </thead>
+          <tbody id="historyTable">
+            <tr><td colspan="8" class="text-center text-muted py-4">
+              <div class="loading-spinner mb-2"></div><br>加载中...
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-3">
+      <span class="text-muted" style="font-size:13px;" id="pageInfo"></span>
+      <div class="d-flex gap-2">
+        <button class="btn-outline-custom btn-sm" id="prevBtn" onclick="loadHistory(currentPage-1)" disabled>
+          <i class="fa fa-chevron-left me-1"></i>上一页
+        </button>
+        <button class="btn-outline-custom btn-sm" id="nextBtn" onclick="loadHistory(currentPage+1)">
+          下一页<i class="fa fa-chevron-right ms-1"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Battle Detail Modal -->
+<div class="battle-modal" id="battleModal" onclick="closeBattleModal(event)">
+  <div class="battle-modal-content" onclick="event.stopPropagation()">
+    <div class="battle-modal-header">
+      <h3 id="modalTitle">对战详情</h3>
+      <button class="battle-modal-close" onclick="closeBattleModal()">&times;</button>
+    </div>
+    <div class="battle-modal-body">
+      <div class="battle-info-bar">
+        <span class="badge badge-blue rounded-pill px-3 py-2" id="modalGrade">-</span>
+        <span id="modalEssayTitle" style="font-weight:600;">-</span>
+        <span class="text-muted" style="margin-left:auto;" id="modalTime">-</span>
+      </div>
+      
+      <div class="mb-3">
+        <h6 style="font-weight:600; margin-bottom:8px;">📝 学生作文</h6>
+        <div id="modalEssayContent" style="background:#f8fafc; padding:16px; border-radius:8px; font-size:14px; line-height:1.8; max-height:200px; overflow-y:auto;"></div>
+      </div>
+      
+      <div class="battle-responses">
+        <div class="battle-response-panel" id="modalPanelA">
+          <div class="battle-response-header">
+            <div class="battle-response-label">
+              <div class="icon a">A</div>
+              <span id="modalModelA">模型 A</span>
+            </div>
+            <span class="battle-winner-badge" id="modalBadgeA">-</span>
+          </div>
+          <div class="battle-response-body md-content" id="modalResponseA"></div>
+        </div>
+        <div class="battle-response-panel" id="modalPanelB">
+          <div class="battle-response-header">
+            <div class="battle-response-label">
+              <div class="icon b">B</div>
+              <span id="modalModelB">模型 B</span>
+            </div>
+            <span class="battle-winner-badge" id="modalBadgeB">-</span>
+          </div>
+          <div class="battle-response-body md-content" id="modalResponseB"></div>
+        </div>
+      </div>
+      
+      <div class="mt-3" id="modalVoteInfo" style="display:none;">
+        <h6 style="font-weight:600; margin-bottom:8px;">🗳️ 投票详情</h6>
+        <div id="modalVoteDetails" style="display:grid; grid-template-columns: repeat(5, 1fr); gap:8px; text-align:center;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/marked/9.1.0/marked.min.js"></script>
+<script>
+function showToast(msg, type='') {
+  const c = document.getElementById('toast-container');
+  const d = document.createElement('div');
+  d.className = 'toast-msg ' + type;
+  d.textContent = msg;
+  c.appendChild(d);
+  setTimeout(() => d.remove(), 3000);
+}
+
+function getAuthHeaders() {
+  const token = localStorage.getItem('token');
+  const headers = {'Content-Type':'application/json'};
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return headers;
+}
+
+async function apiPost(url, data) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+  const json = await r.json();
+  if (json.code === 401) { localStorage.clear(); location.href = '/'; throw {error: '请先登录'}; }
+  if (!r.ok || json.code !== 200) throw {error: json.message || '请求失败'};
+  return json;
+}
+
+async function apiGet(url) {
+  const r = await fetch(url, {headers: getAuthHeaders()});
+  const json = await r.json();
+  if (json.code === 401) { localStorage.clear(); location.href = '/'; throw {error: '请先登录'}; }
+  if (!r.ok || json.code !== 200) throw {error: json.message || '请求失败'};
+  return json;
+}
+
+async function doLogout() {
+  try { await fetch('/api/logout', {method:'POST', headers: getAuthHeaders()}); } catch(e) {}
+  localStorage.clear();
+  location.href = '/';
+}
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  try {
+    text = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return marked.parse(text);
+  }
+  catch(e) { return text.replace(/\n/g, '<br>'); }
+}
+
+async function initSidebar() {
+  // 先从 localStorage 立即显示管理员按钮（避免延迟）
+  const cachedRole = localStorage.getItem('userRole');
+  if (cachedRole === 'admin') {
+    document.getElementById('adminNavLabel').style.display = '';
+    document.getElementById('adminNavLink').style.display = '';
+  }
+  
+  // 异步从服务器获取最新用户信息
+  try {
+    const resp = await apiGet('/api/me');
+    const u = resp.data || resp;
+    document.getElementById('sidebarName').textContent = u.displayName || u.display_name || u.username;
+    document.getElementById('sidebarAvatar').textContent = (u.displayName || u.display_name || u.username)[0].toUpperCase();
+    const roleMap = {admin: '管理员', teacher: '教师'};
+    document.getElementById('sidebarRole').textContent = roleMap[u.role] || u.role;
+    // 再次确认角色（防止本地缓存过期）
+    if (u.role === 'admin') {
+      document.getElementById('adminNavLabel').style.display = '';
+      document.getElementById('adminNavLink').style.display = '';
+      localStorage.setItem('userRole', 'admin');
+    } else {
+      document.getElementById('adminNavLabel').style.display = 'none';
+      document.getElementById('adminNavLink').style.display = 'none';
+      localStorage.setItem('userRole', u.role || 'teacher');
+    }
+  } catch(e) {}
+}
+initSidebar();
+
+let currentPage = 1;
+let allBattles = [];
+
+async function loadHistory(page = 1) {
+  try {
+    const res = await apiGet(`/api/battles/history?page=${page}&size=20`);
+    const data = res.data;
+    
+    const records = data.records || [];
+    const total = data.total || 0;
+    const size = data.size || 20;
+    const current = data.current || 1;
+    const pages = data.pages || 0;
+    
+    allBattles = records;
+    currentPage = current;
+    const totalPages = pages || Math.ceil(total / size);
+
+    document.getElementById('pageInfo').textContent =
+      `第 ${current} 页 / 共 ${totalPages} 页（${total} 条记录）`;
+    document.getElementById('prevBtn').disabled = current <= 1;
+    document.getElementById('nextBtn').disabled = current >= totalPages;
+
+    const tbody = document.getElementById('historyTable');
+    if (!records.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无对战记录</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = records.map((b, idx) => {
+      const matchBadge = {
+        smart: '<span class="badge badge-blue rounded-pill">智能匹配</span>',
+        random: '<span class="badge badge-amber rounded-pill">随机探索</span>',
+        positioning: '<span class="badge badge-green rounded-pill">新模型定位</span>'
+      }[b.match_type] || '<span class="badge badge-blue rounded-pill">普通</span>';
+
+      const winnerStyle = b.winner === '平局'
+        ? 'color:var(--text-light)'
+        : 'color:var(--green); font-weight:600';
+
+      const time = b.created_at ? new Date(b.created_at).toLocaleString('zh-CN') : '-';
+
+      return `<tr class="history-row" onclick="showBattleDetail(${idx})">
+        <td class="text-muted">${b.id}</td>
+        <td><strong>${b.essay_title}</strong></td>
+        <td><span class="company-tag">${b.grade_level}</span></td>
+        <td>${b.model_a}</td>
+        <td>${b.model_b}</td>
+        <td style="${winnerStyle}">${b.winner}</td>
+        <td>${matchBadge}</td>
+        <td class="text-muted" style="font-size:12px;">${time}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    showToast('加载失败', 'error');
+  }
+}
+
+async function showBattleDetail(idx) {
+  const b = allBattles[idx];
+  if (!b) return;
+  
+  // Try to fetch full battle details
+  try {
+    const res = await apiGet(`/api/battle/${b.id}`);
+    const detail = res.data;
+    
+    document.getElementById('modalTitle').textContent = `对战 #${b.id}`;
+    document.getElementById('modalGrade').textContent = detail.grade_level || b.grade_level || '-';
+    document.getElementById('modalEssayTitle').textContent = detail.essay_title || b.essay_title || '-';
+    document.getElementById('modalEssayContent').textContent = detail.essay_content || '-';
+    document.getElementById('modalTime').textContent = b.created_at ? new Date(b.created_at).toLocaleString('zh-CN') : '-';
+    
+    // Model names
+    const modelA = detail.model_left ? detail.model_left.name : (b.model_a || '模型 A');
+    const modelB = detail.model_right ? detail.model_right.name : (b.model_b || '模型 B');
+    document.getElementById('modalModelA').textContent = modelA;
+    document.getElementById('modalModelB').textContent = modelB;
+    
+    // Responses
+    document.getElementById('modalResponseA').innerHTML = renderMarkdown(detail.response_left || detail.response_a || '');
+    document.getElementById('modalResponseB').innerHTML = renderMarkdown(detail.response_right || detail.response_b || '');
+    
+    // Winner badges
+    const winner = detail.winner || b.winner;
+    const panelA = document.getElementById('modalPanelA');
+    const panelB = document.getElementById('modalPanelB');
+    const badgeA = document.getElementById('modalBadgeA');
+    const badgeB = document.getElementById('modalBadgeB');
+    
+    panelA.classList.remove('winner', 'loser');
+    panelB.classList.remove('winner', 'loser');
+    
+    // winner 值: left/right/tie (后端已根据displayOrder转换)
+    if (winner === 'left') {
+      panelA.classList.add('winner');
+      panelB.classList.add('loser');
+      badgeA.textContent = '胜出';
+      badgeA.className = 'battle-winner-badge win';
+      badgeB.textContent = '落败';
+      badgeB.className = 'battle-winner-badge lose';
+    } else if (winner === 'right') {
+      panelA.classList.add('loser');
+      panelB.classList.add('winner');
+      badgeA.textContent = '落败';
+      badgeA.className = 'battle-winner-badge lose';
+      badgeB.textContent = '胜出';
+      badgeB.className = 'battle-winner-badge win';
+    } else {
+      badgeA.textContent = '平局';
+      badgeA.className = 'battle-winner-badge';
+      badgeB.textContent = '平局';
+      badgeB.className = 'battle-winner-badge';
+    }
+    
+    // Vote details
+    if (detail.vote) {
+      document.getElementById('modalVoteInfo').style.display = '';
+      const dims = ['theme', 'imagination', 'logic', 'language', 'writing'];
+      const dimNames = { theme: '主旨', imagination: '想象', logic: '逻辑', language: '语言', writing: '书写' };
+      document.getElementById('modalVoteDetails').innerHTML = dims.map(dim => {
+        const v = detail.vote['dim_' + dim];
+        const winnerText = v === 'left' ? 'A' : v === 'right' ? 'B' : '=';
+        const color = v === 'left' ? '#6366f1' : v === 'right' ? '#f59e0b' : '#64748b';
+        return `<div style="padding:8px; background:#f8fafc; border-radius:8px;">
+          <div style="font-size:12px; color:var(--text-light);">${dimNames[dim]}</div>
+          <div style="font-size:16px; font-weight:700; color:${color};">${winnerText}</div>
+        </div>`;
+      }).join('');
+    } else {
+      document.getElementById('modalVoteInfo').style.display = 'none';
+    }
+    
+  } catch(e) {
+    // Fallback to list data
+    document.getElementById('modalTitle').textContent = `对战 #${b.id}`;
+    document.getElementById('modalGrade').textContent = b.grade_level || '-';
+    document.getElementById('modalEssayTitle').textContent = b.essay_title || '-';
+    document.getElementById('modalEssayContent').textContent = '详情加载失败';
+    document.getElementById('modalModelA').textContent = b.model_a || '模型 A';
+    document.getElementById('modalModelB').textContent = b.model_b || '模型 B';
+    document.getElementById('modalResponseA').textContent = '-';
+    document.getElementById('modalResponseB').textContent = '-';
+    document.getElementById('modalVoteInfo').style.display = 'none';
+  }
+  
+  document.getElementById('battleModal').classList.add('show');
+}
+
+function closeBattleModal(e) {
+  if (e && e.target !== document.getElementById('battleModal')) return;
+  document.getElementById('battleModal').classList.remove('show');
+}
+
+// Keyboard shortcut
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeBattleModal();
+  }
+});
+
+loadHistory();
+</script>
+</body>
+</html>

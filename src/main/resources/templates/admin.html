@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>后台管理 - 教育大模型对战评测平台</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link href="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<script src="https://cdn.bootcdn.net/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {
+  --navy: #0f172a;
+  --navy-mid: #1e293b;
+  --navy-light: #334155;
+  --blue: #3b82f6;
+  --blue-light: #60a5fa;
+  --blue-pale: #dbeafe;
+  --cyan: #06b6d4;
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --green: #10b981;
+  --cream: #f8fafc;
+  --white: #ffffff;
+  --text-dark: #0f172a;
+  --text-mid: #475569;
+  --text-light: #94a3b8;
+  --border: #e2e8f0;
+  --sidebar-w: 250px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Noto Sans SC', -apple-system, sans-serif;
+  background: var(--cream);
+  color: var(--text-dark);
+}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Sidebar */
+.sidebar {
+  position: fixed; top: 0; left: 0;
+  width: var(--sidebar-w); height: 100vh;
+  background: linear-gradient(180deg, var(--navy) 0%, #0c1220 100%);
+  display: flex; flex-direction: column;
+  z-index: 100;
+}
+.sidebar-logo {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.logo-icon {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; margin-bottom: 12px;
+  box-shadow: 0 4px 12px rgba(59,130,246,.3);
+}
+.sidebar-logo h1 {
+  color: #fff; font-size: 15px; font-weight: 700;
+  line-height: 1.4; letter-spacing: .02em;
+}
+.sidebar-logo p { color: rgba(255,255,255,.4); font-size: 11px; margin-top: 2px; }
+.sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+.nav-label {
+  color: rgba(255,255,255,.25); font-size: 10px; font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase;
+  padding: 12px 12px 6px;
+}
+.sidebar-link {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-radius: 10px;
+  color: rgba(255,255,255,.55); text-decoration: none;
+  font-size: 14px; transition: all .2s; margin-bottom: 2px;
+}
+.sidebar-link i { width: 18px; text-align: center; font-size: 15px; }
+.sidebar-link:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.9); }
+.sidebar-link.active {
+  background: linear-gradient(135deg, rgba(59,130,246,.2), rgba(6,182,212,.1));
+  color: #fff; font-weight: 500;
+  border: 1px solid rgba(59,130,246,.2);
+}
+.sidebar-link.active i { color: var(--blue-light); }
+.sidebar-bottom {
+  padding: 16px 12px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+.user-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(255,255,255,.04);
+}
+.user-avatar {
+  width: 34px; height: 34px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: #fff; font-weight: 600;
+}
+.user-info { flex: 1; min-width: 0; }
+.user-name { color: #fff; font-size: 13px; font-weight: 500; display: block; }
+.user-role { color: rgba(255,255,255,.35); font-size: 11px; }
+.logout-btn {
+  background: none; border: none; color: rgba(255,255,255,.3);
+  font-size: 14px; cursor: pointer; padding: 6px; border-radius: 6px;
+}
+.logout-btn:hover { color: var(--red); background: rgba(239,68,68,.1); }
+
+/* Main */
+.main-content {
+  margin-left: var(--sidebar-w);
+  min-height: 100vh;
+}
+.page-header {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 32px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.page-header h2 {
+  font-size: 20px; font-weight: 700; color: var(--text-dark);
+}
+.page-header .subtitle {
+  color: var(--text-mid); font-size: 13px; margin-top: 2px;
+}
+.page-body { padding: 24px 32px; }
+
+/* Cards */
+.card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.card-body { padding: 20px; }
+.card-title-sm {
+  font-size: 12px; font-weight: 600; color: var(--text-light);
+  text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px;
+}
+
+/* Stat Cards */
+.stat-card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px;
+  transition: transform .2s, box-shadow .2s;
+}
+.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.06); }
+.stat-icon {
+  width: 42px; height: 42px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; margin-bottom: 12px;
+}
+.stat-value { font-size: 28px; font-weight: 700; color: var(--text-dark); line-height: 1; }
+.stat-label { font-size: 12px; color: var(--text-light); margin-top: 6px; }
+
+/* Buttons */
+.btn-primary-custom {
+  background: linear-gradient(135deg, var(--blue), #2563eb);
+  border: none; color: #fff; font-weight: 500;
+  border-radius: 10px; padding: 10px 24px; font-size: 14px;
+  transition: all .2s; cursor: pointer;
+}
+.btn-primary-custom:hover {
+  transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,.3);
+  color: #fff;
+}
+.btn-outline-custom {
+  border: 1.5px solid var(--border); color: var(--text-mid);
+  background: transparent; border-radius: 10px; padding: 9px 20px;
+  font-size: 13px; font-weight: 500; transition: all .2s; cursor: pointer;
+}
+.btn-outline-custom:hover { border-color: var(--blue); color: var(--blue); }
+
+/* Form */
+.form-control, .form-select {
+  border-radius: 10px; border: 1.5px solid var(--border);
+  font-size: 14px; padding: 10px 14px;
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+}
+.form-label { font-size: 13px; font-weight: 500; color: var(--text-mid); margin-bottom: 6px; }
+
+/* Badge */
+.badge-blue { background: var(--blue-pale); color: var(--blue); font-weight: 500; }
+.badge-green { background: #d1fae5; color: #059669; font-weight: 500; }
+.badge-amber { background: #fef3c7; color: #d97706; font-weight: 500; }
+.badge-red { background: #fee2e2; color: #dc2626; font-weight: 500; }
+
+/* Table */
+.table-custom th {
+  font-size: 12px; font-weight: 600; color: var(--text-light);
+  text-transform: uppercase; letter-spacing: .06em;
+  border-bottom: 2px solid var(--border); padding: 12px 16px;
+}
+.table-custom td {
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  font-size: 14px; vertical-align: middle;
+}
+.table-custom tr:hover { background: #f8fafc; }
+
+/* Toast */
+#toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; }
+.toast-msg {
+  background: var(--navy); color: #fff;
+  padding: 12px 20px; border-radius: 10px;
+  font-size: 13px; margin-top: 8px;
+  opacity: 0; transform: translateY(10px);
+  animation: toastIn .3s forwards, toastOut .3s 2.5s forwards;
+  box-shadow: 0 8px 24px rgba(0,0,0,.2);
+}
+.toast-msg.error { background: var(--red); }
+.toast-msg.success { background: var(--green); }
+@keyframes toastIn { to { opacity:1; transform:none } }
+@keyframes toastOut { to { opacity:0; transform:translateY(10px) } }
+
+/* Admin specific styles */
+.admin-tabs {
+  display: flex; gap: 4px; margin-bottom: 24px;
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 12px; padding: 4px; width: fit-content;
+}
+.admin-tab {
+  padding: 8px 20px; border-radius: 8px; border: none;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  background: transparent; color: var(--text-mid);
+  transition: all .2s;
+}
+.admin-tab.active { background: var(--blue); color: #fff; }
+.admin-panel { display: none; }
+.admin-panel.active { display: block; }
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  display: inline-block; margin-right: 6px;
+}
+.status-dot.active { background: var(--green); }
+.status-dot.inactive { background: var(--red); }
+.config-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 0; border-bottom: 1px solid var(--border);
+}
+.config-item:last-child { border-bottom: none; }
+
+/* Model card style */
+.model-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: all .2s;
+}
+.model-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,.06);
+}
+.model-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.model-card-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.model-card-name h5 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.model-card-id {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-light);
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.model-card-stats {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.model-stat {
+  text-align: center;
+}
+.model-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+.model-stat-label {
+  font-size: 11px;
+  color: var(--text-light);
+  margin-top: 2px;
+}
+.model-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.model-tag {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+.model-tag.multimodal { background: #dbeafe; color: #2563eb; }
+.model-tag.text { background: #f1f5f9; color: #64748b; }
+.model-tag.long-context { background: #fef3c7; color: #d97706; }
+.model-tag.vision { background: #fce7f3; color: #db2777; }
+.model-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-light);
+}
+.model-price {
+  display: flex;
+  gap: 16px;
+}
+.model-price span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.company-tag {
+  font-size: 11px; padding: 2px 8px; border-radius: 12px;
+  background: #f1f5f9; color: var(--text-mid); font-weight: 500;
+}
+.new-badge {
+  font-size: 10px; padding: 1px 6px; border-radius: 8px;
+  background: #fef3c7; color: #d97706; font-weight: 600;
+}
+
+/* Company colors */
+.company-openai { border-left: 4px solid #10a37f; }
+.company-anthropic { border-left: 4px solid #d97706; }
+.company-google { border-left: 4px solid #4285f4; }
+.company-meta { border-left: 4px solid #0668e1; }
+.company-alibaba { border-left: 4px solid #ff6a00; }
+.company-baidu { border-left: 4px solid #2932e1; }
+.company-deepseek { border-left: 4px solid #0066ff; }
+
+@media (max-width: 768px) {
+  .model-card-stats { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar { width: 60px; }
+  .sidebar-logo h1, .sidebar-logo p, .sidebar-link span,
+  .nav-label, .user-name, .user-role { display: none; }
+  .sidebar-logo { padding: 16px 8px; }
+  .logo-icon { margin: 0 auto; }
+  .sidebar-link { justify-content: center; padding: 12px; }
+  .user-card { justify-content: center; padding: 8px; }
+  .main-content { margin-left: 60px; }
+  .page-body { padding: 16px; }
+}
+
+.text-muted { color: var(--text-light); }
+.text-center { text-align: center; }
+.text-primary { color: var(--blue); }
+.py-3 { padding-top: 1rem; padding-bottom: 1rem; }
+.py-4 { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-3 { margin-bottom: 1rem; }
+.mb-4 { margin-bottom: 1.5rem; }
+.mt-3 { margin-top: 1rem; }
+.mt-4 { margin-top: 1.5rem; }
+.g-2 { gap: 0.5rem; }
+.g-3 { gap: 1rem; }
+.p-0 { padding: 0; }
+.rounded-pill { border-radius: 50rem; }
+.px-3 { padding-left: 1rem; padding-right: 1rem; }
+.py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.me-1 { margin-right: 0.25rem; }
+.ms-1 { margin-left: 0.25rem; }
+.me-2 { margin-right: 0.5rem; }
+.ms-2 { margin-left: 0.5rem; }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.w-100 { width: 100%; }
+.d-flex { display: flex; }
+.justify-content-between { justify-content: space-between; }
+.align-items-center { align-items: center; }
+.align-items-end { align-items: flex-end; }
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 1rem; }
+.text-decoration-none { text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">🏟️</div>
+    <h1>教育大模型对战评测</h1>
+    <p>作文批改 · 众包评测</p>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-label">评测功能</div>
+    <a href="/battle" class="sidebar-link">
+      <i class="fa-solid fa-swords" style="font-size:14px;">⚔</i> <span>对战评测</span>
+    </a>
+    <a href="/leaderboard" class="sidebar-link">
+      <i class="fa-solid fa-trophy"></i> <span>排行榜</span>
+    </a>
+    <a href="/history" class="sidebar-link">
+      <i class="fa-solid fa-clock-rotate-left"></i> <span>对战历史</span>
+    </a>
+    <div class="nav-label" id="adminNavLabel" style="display:none;">管理功能</div>
+    <a href="/admin" class="sidebar-link active" id="adminNavLink" style="display:none;">
+      <i class="fa-solid fa-gear"></i> <span>后台管理</span>
+    </a>
+    <script>
+    if(localStorage.getItem('userRole')==='admin'){
+      document.getElementById('adminNavLabel').style.display='';
+      document.getElementById('adminNavLink').style.display='';
+    }
+    </script>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="user-card">
+      <div class="user-avatar" id="sidebarAvatar">U</div>
+      <div class="user-info">
+        <span class="user-name" id="sidebarName">加载中</span>
+        <span class="user-role" id="sidebarRole">教师</span>
+      </div>
+      <button class="logout-btn" onclick="doLogout()" title="退出登录">
+        <i class="fa fa-right-from-bracket"></i>
+      </button>
+    </div>
+  </div>
+</div>
+<div class="main-content">
+  <div class="page-header">
+    <div>
+      <h2>⚙️ 后台管理</h2>
+      <div class="subtitle">模型管理、系统配置、数据导出、质量监控</div>
+    </div>
+  </div>
+
+  <div class="page-body">
+    <!-- Stats -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3 col-6">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#dbeafe; color:var(--blue);"><i class="fa fa-shield"></i></div>
+          <div class="stat-value" id="aStatBattles">-</div>
+          <div class="stat-label">总对战数</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#d1fae5; color:var(--green);"><i class="fa fa-users"></i></div>
+          <div class="stat-value" id="aStatUsers">-</div>
+          <div class="stat-label">注册用户</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#fef3c7; color:var(--amber);"><i class="fa fa-robot"></i></div>
+          <div class="stat-value" id="aStatModels">-</div>
+          <div class="stat-label">活跃模型</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:#fee2e2; color:var(--red);"><i class="fa fa-exclamation-triangle"></i></div>
+          <div class="stat-value" id="aStatIssues">-</div>
+          <div class="stat-label">质量异常</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Daily chart -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <div class="card-title-sm">📊 近7天对战数</div>
+        <div style="height:180px;"><canvas id="dailyChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="admin-tabs">
+      <button class="admin-tab active" onclick="switchAdminTab('models')">模型管理</button>
+      <button class="admin-tab" onclick="switchAdminTab('config')">系统配置</button>
+      <button class="admin-tab" onclick="switchAdminTab('quality')">质量监控</button>
+      <button class="admin-tab" onclick="switchAdminTab('export')">数据导出</button>
+    </div>
+
+    <!-- Models Panel -->
+    <div class="admin-panel active" id="panel-models">
+      <div class="card mb-3">
+        <div class="card-body">
+          <h6 style="font-weight:600; margin-bottom:16px;"><i class="fa fa-plus-circle me-2 text-primary"></i>添加新模型</h6>
+          <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+              <label class="form-label">模型 ID</label>
+              <input class="form-control" id="newModelId" placeholder="如 gpt-4o-2024-11-20">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">显示名称</label>
+              <input class="form-control" id="newModelName" placeholder="如 GPT-4o">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">公司</label>
+              <input class="form-control" id="newModelCompany" placeholder="如 OpenAI">
+            </div>
+            <div class="col-md-2">
+              <button class="btn-primary-custom w-100" onclick="addModel()">添加</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="modelCards"></div>
+    </div>
+
+    <!-- Config Panel -->
+    <div class="admin-panel" id="panel-config">
+      <div class="card">
+        <div class="card-body">
+          <h6 style="font-weight:600; margin-bottom:16px;"><i class="fa fa-key me-2"></i>API 配置</h6>
+          <div class="config-item">
+            <div>
+              <strong>AiHubMix API Key</strong>
+              <div class="text-muted" style="font-size:12px;">用于调用 AI 模型，<span id="apiStatus"></span></div>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+              <input type="password" class="form-control" id="apiKeyInput" style="width:300px;" placeholder="sk-xxx">
+              <button class="btn-primary-custom btn-sm" onclick="setApiKey()">保存</button>
+            </div>
+          </div>
+          <div class="config-item">
+            <div>
+              <strong>Elo K 值</strong>
+              <div class="text-muted" style="font-size:12px;">控制每次对战分数变化幅度（默认32）</div>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+              <input type="number" class="form-control" id="eloKInput" style="width:120px;" min="1" max="128">
+              <button class="btn-primary-custom btn-sm" onclick="saveConfig()">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quality Panel -->
+    <div class="admin-panel" id="panel-quality">
+      <div class="card">
+        <div class="card-body p-0">
+          <table class="table table-custom mb-0">
+            <thead>
+              <tr><th>时间</th><th>类型</th><th>级别</th><th>详情</th><th>用户</th><th>对战ID</th></tr>
+            </thead>
+            <tbody id="qualityTable">
+              <tr><td colspan="6" class="text-center text-muted py-3">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export Panel -->
+    <div class="admin-panel" id="panel-export">
+      <div class="card">
+        <div class="card-body">
+          <h6 style="font-weight:600; margin-bottom:16px;"><i class="fa fa-download me-2"></i>偏好数据集导出</h6>
+          <p class="text-muted" style="font-size:14px; margin-bottom:20px;">
+            导出标准化的人类偏好三元组数据集（prompt / chosen / rejected），可直接用于 DPO / RLHF 训练。
+          </p>
+          <div class="d-flex gap-3">
+            <a href="/api/admin/export/preference" class="btn-primary-custom text-decoration-none" download>
+              <i class="fa fa-file-code me-2"></i>导出 JSON
+            </a>
+            <a href="/api/admin/export/jsonl" class="btn-outline-custom text-decoration-none" download>
+              <i class="fa fa-file-lines me-2"></i>导出 JSONL
+            </a>
+          </div>
+          <div class="mt-3 p-3" style="background:#f8fafc; border-radius:10px;">
+            <div class="card-title-sm mb-2">数据格式示例 (JSON)</div>
+            <pre style="font-size:12px; color:var(--text-mid); font-family:'JetBrains Mono',monospace; margin:0; white-space:pre-wrap;">{
+  "task_type": "作文批改",
+  "prompt": "【作文题目】论坚持的力量\n【学生作文】...",
+  "chosen": "获胜模型的批改回答...",
+  "rejected": "落败模型的批改回答...",
+  "chosen_model": "GPT-4o",
+  "rejected_model": "Qwen Max",
+  "label_source": "human_battle"
+}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+<script>
+function showToast(msg, type='') {
+  const c = document.getElementById('toast-container');
+  const d = document.createElement('div');
+  d.className = 'toast-msg ' + type;
+  d.textContent = msg;
+  c.appendChild(d);
+  setTimeout(() => d.remove(), 3000);
+}
+
+function getAuthHeaders() {
+  const token = localStorage.getItem('token');
+  const headers = {'Content-Type':'application/json'};
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return headers;
+}
+
+async function apiPost(url, data) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+  const json = await r.json();
+  if (json.code === 401) { localStorage.clear(); location.href = '/'; throw {error: '请先登录'}; }
+  if (!r.ok || json.code !== 200) throw {error: json.message || '请求失败'};
+  return json;
+}
+
+async function apiGet(url) {
+  const r = await fetch(url, {headers: getAuthHeaders()});
+  const json = await r.json();
+  if (json.code === 401) { localStorage.clear(); location.href = '/'; throw {error: '请先登录'}; }
+  if (!r.ok || json.code !== 200) throw {error: json.message || '请求失败'};
+  return json;
+}
+
+async function doLogout() {
+  try { await fetch('/api/logout', {method:'POST', headers: getAuthHeaders()}); } catch(e) {}
+  localStorage.clear();
+  location.href = '/';
+}
+
+async function initSidebar() {
+  // 先从 localStorage 立即显示管理员按钮（避免延迟）
+  const cachedRole = localStorage.getItem('userRole');
+  if (cachedRole === 'admin') {
+    document.getElementById('adminNavLabel').style.display = '';
+    document.getElementById('adminNavLink').style.display = '';
+  }
+  
+  // 异步从服务器获取最新用户信息
+  try {
+    const resp = await apiGet('/api/me');
+    const u = resp.data || resp;
+    document.getElementById('sidebarName').textContent = u.displayName || u.display_name || u.username;
+    document.getElementById('sidebarAvatar').textContent = (u.displayName || u.display_name || u.username)[0].toUpperCase();
+    const roleMap = {admin: '管理员', teacher: '教师'};
+    document.getElementById('sidebarRole').textContent = roleMap[u.role] || u.role;
+    // 再次确认角色（防止本地缓存过期）
+    if (u.role === 'admin') {
+      document.getElementById('adminNavLabel').style.display = '';
+      document.getElementById('adminNavLink').style.display = '';
+      localStorage.setItem('userRole', 'admin');
+    } else {
+      document.getElementById('adminNavLabel').style.display = 'none';
+      document.getElementById('adminNavLink').style.display = 'none';
+      localStorage.setItem('userRole', u.role || 'teacher');
+    }
+  } catch(e) {}
+}
+
+function switchAdminTab(tab) {
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+}
+
+async function loadAdminStats() {
+  try {
+    const res = await apiGet('/api/admin/stats');
+    const s = res.data;
+    document.getElementById('aStatBattles').textContent = s.total_battles || '-';
+    document.getElementById('aStatUsers').textContent = s.total_users || '-';
+    document.getElementById('aStatModels').textContent = s.activeModels || 0;
+    document.getElementById('aStatIssues').textContent = s.quality_issues || '-';
+    if (s.daily_battles) {
+      renderDailyChart(s.daily_battles);
+    }
+  } catch(e) {}
+}
+
+function renderDailyChart(data) {
+  const ctx = document.getElementById('dailyChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.date.slice(5)),
+      datasets: [{
+        label: '对战数',
+        data: data.map(d => d.count),
+        backgroundColor: 'rgba(59,130,246,.2)',
+        borderColor: 'var(--blue)',
+        borderWidth: 1.5, borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function getCompanyClass(company) {
+  if (!company) return '';
+  const c = company.toLowerCase();
+  if (c.includes('openai')) return 'company-openai';
+  if (c.includes('anthropic')) return 'company-anthropic';
+  if (c.includes('google')) return 'company-google';
+  if (c.includes('meta')) return 'company-meta';
+  if (c.includes('alibaba') || c.includes('qwen')) return 'company-alibaba';
+  if (c.includes('baidu')) return 'company-baidu';
+  if (c.includes('deepseek')) return 'company-deepseek';
+  return '';
+}
+
+function getModalityTags(modalities) {
+  if (!modalities) return '<span class="model-tag text">文本</span>';
+  const tags = [];
+  if (modalities.includes('text')) tags.push('<span class="model-tag text">文本</span>');
+  if (modalities.includes('image') || modalities.includes('vision')) tags.push('<span class="model-tag vision">视觉</span>');
+  if (modalities.includes('audio')) tags.push('<span class="model-tag multimodal">音频</span>');
+  return tags.join('');
+}
+
+function getFeatureTags(features) {
+  if (!features) return '';
+  const tags = [];
+  if (features.includes('tool') || features.includes('function')) tags.push('<span class="model-tag multimodal">工具调用</span>');
+  if (features.includes('stream')) tags.push('<span class="model-tag text">流式输出</span>');
+  return tags.join('');
+}
+
+function formatPrice(price) {
+  if (!price) return '-';
+  if (price < 0.01) return '$' + (price * 1000).toFixed(2) + '/M';
+  return '$' + price.toFixed(4) + '/K';
+}
+
+function formatNumber(num) {
+  if (!num) return '-';
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(0) + 'K';
+  return num.toString();
+}
+
+async function loadModels() {
+  try {
+    const res = await apiGet('/api/admin/models');
+    const models = res.data;
+    
+    document.getElementById('modelCards').innerHTML = models.map(m => {
+      const companyClass = getCompanyClass(m.company);
+      const modalityTags = getModalityTags(m.input_modalities);
+      const featureTags = getFeatureTags(m.features);
+      const winRate = m.total_matches > 0 ? (m.win_count / m.total_matches * 100).toFixed(1) : '-';
+      
+      return `
+      <div class="model-card ${companyClass}">
+        <div class="model-card-header">
+          <div class="model-card-name">
+            <h5>${m.name}</h5>
+            ${m.is_new ? '<span class="new-badge">NEW</span>' : ''}
+            <span class="model-card-id">${m.model_id}</span>
+          </div>
+          <div class="d-flex align-items-center gap-3">
+            <span class="status-dot ${m.status}"></span>
+            <span style="font-size:13px; color:${m.status === 'active' ? 'var(--green)' : 'var(--red)'}">
+              ${m.status === 'active' ? '已启用' : '已禁用'}
+            </span>
+            <button class="btn-outline-custom btn-sm" onclick="toggleModel(${m.id})" style="font-size:12px; padding:4px 12px;">
+              ${m.status === 'active' ? '禁用' : '启用'}
+            </button>
+          </div>
+        </div>
+        
+        <div class="model-card-stats">
+          <div class="model-stat">
+            <div class="model-stat-value" style="color:var(--blue);">${m.elo_score ? m.elo_score.toFixed(0) : '1500'}</div>
+            <div class="model-stat-label">Elo 分数</div>
+          </div>
+          <div class="model-stat">
+            <div class="model-stat-value">${m.total_matches || 0}</div>
+            <div class="model-stat-label">对战次数</div>
+          </div>
+          <div class="model-stat">
+            <div class="model-stat-value" style="color:var(--green);">${winRate}%</div>
+            <div class="model-stat-label">胜率</div>
+          </div>
+          <div class="model-stat">
+            <div class="model-stat-value">${formatNumber(m.context_length)}</div>
+            <div class="model-stat-label">上下文长度</div>
+          </div>
+          <div class="model-stat">
+            <div class="model-stat-value">${formatNumber(m.max_output)}</div>
+            <div class="model-stat-label">最大输出</div>
+          </div>
+          <div class="model-stat">
+            <div class="model-stat-value">${m.win_count || 0}/${m.lose_count || 0}/${m.tie_count || 0}</div>
+            <div class="model-stat-label">胜/负/平</div>
+          </div>
+        </div>
+        
+        <div class="model-card-tags">
+          <span class="company-tag">${m.company || '未知'}</span>
+          ${modalityTags}
+          ${featureTags}
+        </div>
+        
+        <div class="model-card-meta">
+          <div class="model-price">
+            <span><i class="fa fa-arrow-down"></i> 输入: ${formatPrice(m.input_price)}</span>
+            <span><i class="fa fa-arrow-up"></i> 输出: ${formatPrice(m.output_price)}</span>
+          </div>
+          <div>
+            ${m.description ? '<span title="' + m.description + '" style="cursor:help;">' + (m.description.length > 50 ? m.description.slice(0, 50) + '...' : m.description) + '</span>' : ''}
+          </div>
+        </div>
+      </div>
+      `;
+    }).join('');
+  } catch(e) {
+    console.error('Load models error:', e);
+  }
+}
+
+async function addModel() {
+  const model_id = document.getElementById('newModelId').value.trim();
+  const name = document.getElementById('newModelName').value.trim();
+  const company = document.getElementById('newModelCompany').value.trim();
+  if (!model_id || !name) { showToast('请填写模型ID和名称', 'error'); return; }
+  try {
+    await apiPost('/api/admin/models', { model_id, name, company });
+    showToast('模型已添加', 'success');
+    loadModels();
+    document.getElementById('newModelId').value = '';
+    document.getElementById('newModelName').value = '';
+    document.getElementById('newModelCompany').value = '';
+  } catch(e) { showToast(e.error || '添加失败', 'error'); }
+}
+
+async function toggleModel(id) {
+  try {
+    await apiPost(`/api/admin/models/${id}/toggle`, {});
+    loadModels();
+  } catch(e) { showToast(e.error || '操作失败', 'error'); }
+}
+
+async function loadConfig() {
+  try {
+    const res = await apiGet('/api/admin/config');
+    const c = res.data;
+    document.getElementById('eloKInput').value = c.elo_k || c.eloK || 32;
+    document.getElementById('apiStatus').textContent = c.api_configured ? '✅ 已配置' : '⚠️ 未配置';
+    document.getElementById('apiStatus').style.color = c.api_configured ? 'var(--green)' : 'var(--amber)';
+  } catch(e) {}
+}
+
+async function setApiKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key) { showToast('请输入 API Key', 'error'); return; }
+  try {
+    await apiPost('/api/admin/set_api_key', { api_key: key });
+    showToast('API Key 已保存', 'success');
+    document.getElementById('apiKeyInput').value = '';
+    loadConfig();
+  } catch(e) { showToast(e.error || '保存失败', 'error'); }
+}
+
+async function saveConfig() {
+  const k = parseInt(document.getElementById('eloKInput').value);
+  if (!k || k < 1) { showToast('K值必须大于0', 'error'); return; }
+  try {
+    await apiPost('/api/admin/config', { elo_k: k });
+    showToast('配置已保存', 'success');
+  } catch(e) { showToast(e.error || '保存失败', 'error'); }
+}
+
+async function loadQuality() {
+  try {
+    const res = await apiGet('/api/admin/quality_logs');
+    const logs = res.data;
+    const tbody = document.getElementById('qualityTable');
+    if (!logs || !logs.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">暂无异常记录</td></tr>';
+      return;
+    }
+    tbody.innerHTML = logs.map(l => {
+      const badge = l.result === 'error'
+        ? '<span class="badge badge-red rounded-pill">异常</span>'
+        : '<span class="badge badge-amber rounded-pill">警告</span>';
+      const typeMap = {
+        fast_vote: '秒投', position_bias: '固定偏好',
+        rapid_voting: '频繁投票'
+      };
+      return `<tr>
+        <td style="font-size:12px; color:var(--text-light);">${l.created_at || '-'}</td>
+        <td>${typeMap[l.check_type] || l.check_type}</td>
+        <td>${badge}</td>
+        <td style="font-size:13px;">${l.detail || '-'}</td>
+        <td>${l.username || '-'}</td>
+        <td>${l.battle_id || '-'}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {}
+}
+
+// Init - 并行加载所有数据，提升页面响应速度
+async function initPage() {
+  // 并行执行所有加载任务，不等待彼此
+  await Promise.all([
+    initSidebar(),
+    loadAdminStats(),
+    loadModels(),
+    loadConfig(),
+    loadQuality()
+  ]);
+}
+
+// DOM加载完成后立即初始化
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPage);
+} else {
+  initPage();
+}
+</script>
+</body>
+</html>

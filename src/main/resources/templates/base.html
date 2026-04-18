@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}教育大模型对战评测平台{% endblock %}</title>
+<link href="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<style>
+:root {
+  --navy: #0f172a;
+  --navy-mid: #1e293b;
+  --navy-light: #334155;
+  --blue: #3b82f6;
+  --blue-light: #60a5fa;
+  --blue-pale: #dbeafe;
+  --cyan: #06b6d4;
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --green: #10b981;
+  --cream: #f8fafc;
+  --white: #ffffff;
+  --text-dark: #0f172a;
+  --text-mid: #475569;
+  --text-light: #94a3b8;
+  --border: #e2e8f0;
+  --sidebar-w: 250px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Noto Sans SC', -apple-system, sans-serif;
+  background: var(--cream);
+  color: var(--text-dark);
+}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Sidebar */
+.sidebar {
+  position: fixed; top: 0; left: 0;
+  width: var(--sidebar-w); height: 100vh;
+  background: linear-gradient(180deg, var(--navy) 0%, #0c1220 100%);
+  display: flex; flex-direction: column;
+  z-index: 100;
+}
+.sidebar-logo {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.logo-icon {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; margin-bottom: 12px;
+  box-shadow: 0 4px 12px rgba(59,130,246,.3);
+}
+.sidebar-logo h1 {
+  color: #fff; font-size: 15px; font-weight: 700;
+  line-height: 1.4; letter-spacing: .02em;
+}
+.sidebar-logo p { color: rgba(255,255,255,.4); font-size: 11px; margin-top: 2px; }
+.sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+.nav-label {
+  color: rgba(255,255,255,.25); font-size: 10px; font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase;
+  padding: 12px 12px 6px;
+}
+.sidebar-link {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-radius: 10px;
+  color: rgba(255,255,255,.55); text-decoration: none;
+  font-size: 14px; transition: all .2s; margin-bottom: 2px;
+}
+.sidebar-link i { width: 18px; text-align: center; font-size: 15px; }
+.sidebar-link:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.9); }
+.sidebar-link.active {
+  background: linear-gradient(135deg, rgba(59,130,246,.2), rgba(6,182,212,.1));
+  color: #fff; font-weight: 500;
+  border: 1px solid rgba(59,130,246,.2);
+}
+.sidebar-link.active i { color: var(--blue-light); }
+.sidebar-bottom {
+  padding: 16px 12px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+.user-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(255,255,255,.04);
+}
+.user-avatar {
+  width: 34px; height: 34px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: #fff; font-weight: 600;
+}
+.user-info { flex: 1; min-width: 0; }
+.user-name { color: #fff; font-size: 13px; font-weight: 500; display: block; }
+.user-role { color: rgba(255,255,255,.35); font-size: 11px; }
+.logout-btn {
+  background: none; border: none; color: rgba(255,255,255,.3);
+  font-size: 14px; cursor: pointer; padding: 6px; border-radius: 6px;
+}
+.logout-btn:hover { color: var(--red); background: rgba(239,68,68,.1); }
+
+/* Main */
+.main-content {
+  margin-left: var(--sidebar-w);
+  min-height: 100vh;
+}
+.page-header {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 32px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.page-header h2 {
+  font-size: 20px; font-weight: 700; color: var(--text-dark);
+}
+.page-header .subtitle {
+  color: var(--text-mid); font-size: 13px; margin-top: 2px;
+}
+.page-body { padding: 24px 32px; }
+
+/* Cards */
+.card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.card-body { padding: 20px; }
+.card-title-sm {
+  font-size: 12px; font-weight: 600; color: var(--text-light);
+  text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px;
+}
+
+/* Stat Cards */
+.stat-card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px;
+  transition: transform .2s, box-shadow .2s;
+}
+.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.06); }
+.stat-icon {
+  width: 42px; height: 42px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; margin-bottom: 12px;
+}
+.stat-value { font-size: 28px; font-weight: 700; color: var(--text-dark); line-height: 1; }
+.stat-label { font-size: 12px; color: var(--text-light); margin-top: 6px; }
+
+/* Buttons */
+.btn-primary-custom {
+  background: linear-gradient(135deg, var(--blue), #2563eb);
+  border: none; color: #fff; font-weight: 500;
+  border-radius: 10px; padding: 10px 24px; font-size: 14px;
+  transition: all .2s;
+}
+.btn-primary-custom:hover {
+  transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,.3);
+  color: #fff;
+}
+.btn-outline-custom {
+  border: 1.5px solid var(--border); color: var(--text-mid);
+  background: transparent; border-radius: 10px; padding: 9px 20px;
+  font-size: 13px; font-weight: 500; transition: all .2s;
+}
+.btn-outline-custom:hover { border-color: var(--blue); color: var(--blue); }
+
+/* Battle cards */
+.battle-card {
+  background: var(--white); border: 2px solid var(--border);
+  border-radius: 16px; padding: 24px; cursor: pointer;
+  transition: all .25s;
+}
+.battle-card:hover { border-color: var(--blue-light); box-shadow: 0 8px 24px rgba(59,130,246,.1); }
+.battle-card.selected {
+  border-color: var(--blue); background: linear-gradient(135deg, #f0f7ff, #e8f4fd);
+  box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+}
+
+/* Form */
+.form-control, .form-select {
+  border-radius: 10px; border: 1.5px solid var(--border);
+  font-size: 14px; padding: 10px 14px;
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+}
+.form-label { font-size: 13px; font-weight: 500; color: var(--text-mid); margin-bottom: 6px; }
+
+/* Badge */
+.badge-blue { background: var(--blue-pale); color: var(--blue); font-weight: 500; }
+.badge-green { background: #d1fae5; color: #059669; font-weight: 500; }
+.badge-amber { background: #fef3c7; color: #d97706; font-weight: 500; }
+.badge-red { background: #fee2e2; color: #dc2626; font-weight: 500; }
+
+/* Table */
+.table-custom th {
+  font-size: 12px; font-weight: 600; color: var(--text-light);
+  text-transform: uppercase; letter-spacing: .06em;
+  border-bottom: 2px solid var(--border); padding: 12px 16px;
+}
+.table-custom td {
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  font-size: 14px; vertical-align: middle;
+}
+.table-custom tr:hover { background: #f8fafc; }
+
+/* Toast */
+#toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; }
+.toast-msg {
+  background: var(--navy); color: #fff;
+  padding: 12px 20px; border-radius: 10px;
+  font-size: 13px; margin-top: 8px;
+  opacity: 0; transform: translateY(10px);
+  animation: toastIn .3s forwards, toastOut .3s 2.5s forwards;
+  box-shadow: 0 8px 24px rgba(0,0,0,.2);
+}
+.toast-msg.error { background: var(--red); }
+.toast-msg.success { background: var(--green); }
+@keyframes toastIn { to { opacity:1; transform:none } }
+@keyframes toastOut { to { opacity:0; transform:translateY(10px) } }
+
+/* Modal */
+.modal-content { border-radius: 16px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,.15); }
+.modal-header { border-bottom: 1px solid var(--border); padding: 20px 24px; }
+.modal-body { padding: 24px; }
+
+/* Markdown content */
+.md-content h1, .md-content h2, .md-content h3 {
+  margin-top: 16px; margin-bottom: 8px; font-weight: 600;
+}
+.md-content h2 { font-size: 16px; }
+.md-content h3 { font-size: 14px; }
+.md-content p { margin-bottom: 8px; line-height: 1.7; font-size: 14px; }
+.md-content ul, .md-content ol { padding-left: 20px; margin-bottom: 8px; }
+.md-content li { margin-bottom: 4px; font-size: 14px; }
+.md-content strong { color: var(--text-dark); }
+.md-content blockquote {
+  border-left: 3px solid var(--blue); padding: 8px 16px;
+  background: var(--blue-pale); border-radius: 0 8px 8px 0;
+  margin: 8px 0;
+}
+.md-content code {
+  background: #f1f5f9; padding: 2px 6px; border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace; font-size: 13px;
+}
+
+/* Loading */
+.loading-spinner {
+  display: inline-block; width: 40px; height: 40px;
+  border: 3px solid var(--border); border-radius: 50%;
+  border-top-color: var(--blue);
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar { width: 60px; }
+  .sidebar-logo h1, .sidebar-logo p, .sidebar-link span,
+  .nav-label, .user-name, .user-role { display: none; }
+  .sidebar-logo { padding: 16px 8px; }
+  .logo-icon { margin: 0 auto; }
+  .sidebar-link { justify-content: center; padding: 12px; }
+  .user-card { justify-content: center; padding: 8px; }
+  .main-content { margin-left: 60px; }
+  .page-body { padding: 16px; }
+}
+</style>
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+
+{% if show_sidebar is not defined or show_sidebar %}
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">🏟️</div>
+    <h1>教育大模型对战评测</h1>
+    <p>作文批改 · 众包评测</p>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-label">评测功能</div>
+    <a href="/battle" class="sidebar-link {% if request.path == '/battle' %}active{% endif %}">
+      <i class="fa-solid fa-swords" style="font-size:14px;">⚔</i> <span>对战评测</span>
+    </a>
+    <a href="/leaderboard" class="sidebar-link {% if request.path == '/leaderboard' %}active{% endif %}">
+      <i class="fa-solid fa-trophy"></i> <span>排行榜</span>
+    </a>
+    <a href="/history" class="sidebar-link {% if request.path == '/history' %}active{% endif %}">
+      <i class="fa-solid fa-clock-rotate-left"></i> <span>对战历史</span>
+    </a>
+    <div class="nav-label" id="adminNavLabel" style="display:none;">管理功能</div>
+    <a href="/admin" class="sidebar-link {% if request.path == '/admin' %}active{% endif %}" id="adminNavLink" style="display:none;">
+      <i class="fa-solid fa-gear"></i> <span>后台管理</span>
+    </a>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="user-card">
+      <div class="user-avatar" id="sidebarAvatar">U</div>
+      <div class="user-info">
+        <span class="user-name" id="sidebarName">加载中</span>
+        <span class="user-role" id="sidebarRole">教师</span>
+      </div>
+      <button class="logout-btn" onclick="doLogout()" title="退出登录">
+        <i class="fa fa-right-from-bracket"></i>
+      </button>
+    </div>
+  </div>
+</div>
+<div class="main-content">
+  {% block content %}{% endblock %}
+</div>
+{% else %}
+  {% block full_content %}{% endblock %}
+{% endif %}
+
+<div id="toast-container"></div>
+
+<script src="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/marked/9.1.0/marked.min.js"></script>
+<script>
+function showToast(msg, type='') {
+  const c = document.getElementById('toast-container');
+  const d = document.createElement('div');
+  d.className = 'toast-msg ' + type;
+  d.textContent = msg;
+  c.appendChild(d);
+  setTimeout(() => d.remove(), 3000);
+}
+
+async function apiPost(url, data) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  });
+  const json = await r.json();
+  // 后端统一返回格式: {code: xxx, message: "...", data: ...}
+  if (!r.ok || json.code !== 200) throw {error: json.message || '请求失败'};
+  return json;
+}
+
+async function apiGet(url) {
+  const r = await fetch(url);
+  const json = await r.json();
+  // 后端统一返回格式: {code: xxx, message: "...", data: ...}
+  if (!r.ok || json.code !== 200) throw {error: json.message || '请求失败'};
+  return json;
+}
+
+async function doLogout() {
+  await fetch('/api/logout', {method:'POST'});
+  location.href = '/';
+}
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  try {
+    // 先转义尖括号，防止模型输出的 <主旨：7> 等被浏览器当作 HTML 标签吞掉
+    text = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return marked.parse(text);
+  }
+  catch(e) { return text.replace(/\n/g, '<br>'); }
+}
+
+async function initSidebar() {
+  try {
+    const u = await apiGet('/api/me');
+    document.getElementById('sidebarName').textContent = u.display_name || u.username;
+    document.getElementById('sidebarAvatar').textContent = (u.display_name || u.username)[0].toUpperCase();
+    const roleMap = {admin: '管理员', teacher: '教师'};
+    document.getElementById('sidebarRole').textContent = roleMap[u.role] || u.role;
+    if (u.role === 'admin') {
+      document.getElementById('adminNavLabel').style.display = '';
+      document.getElementById('adminNavLink').style.display = '';
+    }
+  } catch(e) {}
+}
+initSidebar();
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

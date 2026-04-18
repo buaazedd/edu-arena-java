@@ -1,0 +1,1608 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>对战评测 - 教育大模型对战评测平台</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link href="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<style>
+:root {
+  --navy: #0f172a;
+  --navy-mid: #1e293b;
+  --navy-light: #334155;
+  --blue: #3b82f6;
+  --blue-light: #60a5fa;
+  --blue-pale: #dbeafe;
+  --cyan: #06b6d4;
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --green: #10b981;
+  --cream: #f8fafc;
+  --white: #ffffff;
+  --text-dark: #0f172a;
+  --text-mid: #475569;
+  --text-light: #94a3b8;
+  --border: #e2e8f0;
+  --sidebar-w: 250px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Noto Sans SC', -apple-system, sans-serif;
+  background: var(--cream);
+  color: var(--text-dark);
+}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Sidebar */
+.sidebar {
+  position: fixed; top: 0; left: 0;
+  width: var(--sidebar-w); height: 100vh;
+  background: linear-gradient(180deg, var(--navy) 0%, #0c1220 100%);
+  display: flex; flex-direction: column;
+  z-index: 100;
+}
+.sidebar-logo {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.logo-icon {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; margin-bottom: 12px;
+  box-shadow: 0 4px 12px rgba(59,130,246,.3);
+}
+.sidebar-logo h1 {
+  color: #fff; font-size: 15px; font-weight: 700;
+  line-height: 1.4; letter-spacing: .02em;
+}
+.sidebar-logo p { color: rgba(255,255,255,.4); font-size: 11px; margin-top: 2px; }
+.sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+.nav-label {
+  color: rgba(255,255,255,.25); font-size: 10px; font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase;
+  padding: 12px 12px 6px;
+}
+.sidebar-link {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-radius: 10px;
+  color: rgba(255,255,255,.55); text-decoration: none;
+  font-size: 14px; transition: all .2s; margin-bottom: 2px;
+}
+.sidebar-link i { width: 18px; text-align: center; font-size: 15px; }
+.sidebar-link:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.9); }
+.sidebar-link.active {
+  background: linear-gradient(135deg, rgba(59,130,246,.2), rgba(6,182,212,.1));
+  color: #fff; font-weight: 500;
+  border: 1px solid rgba(59,130,246,.2);
+}
+.sidebar-link.active i { color: var(--blue-light); }
+.sidebar-bottom {
+  padding: 16px 12px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+.user-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(255,255,255,.04);
+}
+.user-avatar {
+  width: 34px; height: 34px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: #fff; font-weight: 600;
+}
+.user-info { flex: 1; min-width: 0; }
+.user-name { color: #fff; font-size: 13px; font-weight: 500; display: block; }
+.user-role { color: rgba(255,255,255,.35); font-size: 11px; }
+.logout-btn {
+  background: none; border: none; color: rgba(255,255,255,.3);
+  font-size: 14px; cursor: pointer; padding: 6px; border-radius: 6px;
+}
+.logout-btn:hover { color: var(--red); background: rgba(239,68,68,.1); }
+
+/* Main */
+.main-content {
+  margin-left: var(--sidebar-w);
+  min-height: 100vh;
+}
+.page-header {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 32px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.page-header h2 {
+  font-size: 20px; font-weight: 700; color: var(--text-dark);
+}
+.page-header .subtitle {
+  color: var(--text-mid); font-size: 13px; margin-top: 2px;
+}
+.page-body { padding: 24px 32px; }
+
+/* Cards */
+.card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.card-body { padding: 20px; }
+.card-title-sm {
+  font-size: 12px; font-weight: 600; color: var(--text-light);
+  text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px;
+}
+
+/* Stat Cards */
+.stat-card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px;
+  transition: transform .2s, box-shadow .2s;
+}
+.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.06); }
+.stat-icon {
+  width: 42px; height: 42px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; margin-bottom: 12px;
+}
+.stat-value { font-size: 28px; font-weight: 700; color: var(--text-dark); line-height: 1; }
+.stat-label { font-size: 12px; color: var(--text-light); margin-top: 6px; }
+
+/* Buttons */
+.btn-primary-custom {
+  background: linear-gradient(135deg, var(--blue), #2563eb);
+  border: none; color: #fff; font-weight: 500;
+  border-radius: 10px; padding: 10px 24px; font-size: 14px;
+  transition: all .2s; cursor: pointer;
+}
+.btn-primary-custom:hover {
+  transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,.3);
+  color: #fff;
+}
+.btn-outline-custom {
+  border: 1.5px solid var(--border); color: var(--text-mid);
+  background: transparent; border-radius: 10px; padding: 9px 20px;
+  font-size: 13px; font-weight: 500; transition: all .2s; cursor: pointer;
+}
+.btn-outline-custom:hover { border-color: var(--blue); color: var(--blue); }
+
+/* Form */
+.form-control, .form-select {
+  border-radius: 10px; border: 1.5px solid var(--border);
+  font-size: 14px; padding: 10px 14px;
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+}
+.form-label { font-size: 13px; font-weight: 500; color: var(--text-mid); margin-bottom: 6px; }
+
+/* Badge */
+.badge-blue { background: var(--blue-pale); color: var(--blue); font-weight: 500; }
+.badge-green { background: #d1fae5; color: #059669; font-weight: 500; }
+.badge-amber { background: #fef3c7; color: #d97706; font-weight: 500; }
+.badge-red { background: #fee2e2; color: #dc2626; font-weight: 500; }
+
+/* Table */
+.table-custom th {
+  font-size: 12px; font-weight: 600; color: var(--text-light);
+  text-transform: uppercase; letter-spacing: .06em;
+  border-bottom: 2px solid var(--border); padding: 12px 16px;
+}
+.table-custom td {
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  font-size: 14px; vertical-align: middle;
+}
+.table-custom tr:hover { background: #f8fafc; }
+
+/* Toast */
+#toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; }
+.toast-msg {
+  background: var(--navy); color: #fff;
+  padding: 12px 20px; border-radius: 10px;
+  font-size: 13px; margin-top: 8px;
+  opacity: 0; transform: translateY(10px);
+  animation: toastIn .3s forwards, toastOut .3s 2.5s forwards;
+  box-shadow: 0 8px 24px rgba(0,0,0,.2);
+}
+.toast-msg.error { background: var(--red); }
+.toast-msg.success { background: var(--green); }
+@keyframes toastIn { to { opacity:1; transform:none } }
+@keyframes toastOut { to { opacity:0; transform:translateY(10px) } }
+
+/* Markdown content */
+.md-content h1, .md-content h2, .md-content h3 {
+  margin-top: 16px; margin-bottom: 8px; font-weight: 600;
+}
+.md-content h2 { font-size: 16px; }
+.md-content h3 { font-size: 14px; }
+.md-content p { margin-bottom: 8px; line-height: 1.7; font-size: 14px; }
+.md-content ul, .md-content ol { padding-left: 20px; margin-bottom: 8px; }
+.md-content li { margin-bottom: 4px; font-size: 14px; }
+.md-content strong { color: var(--text-dark); }
+.md-content blockquote {
+  border-left: 3px solid var(--blue); padding: 8px 16px;
+  background: var(--blue-pale); border-radius: 0 8px 8px 0;
+  margin: 8px 0;
+}
+.md-content code {
+  background: #f1f5f9; padding: 2px 6px; border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace; font-size: 13px;
+}
+
+/* Loading */
+.loading-spinner {
+  display: inline-block; width: 40px; height: 40px;
+  border: 3px solid var(--border); border-radius: 50%;
+  border-top-color: var(--blue);
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Battle page specific styles */
+.step-indicator {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 24px;
+}
+.step {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text-light);
+}
+.step.active { color: var(--blue); font-weight: 600; }
+.step.done { color: var(--green); }
+.step-num {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600;
+  border: 2px solid var(--border); color: var(--text-light);
+}
+.step.active .step-num { border-color: var(--blue); color: var(--blue); background: var(--blue-pale); }
+.step.done .step-num { border-color: var(--green); color: #fff; background: var(--green); }
+.step-line { width: 40px; height: 2px; background: var(--border); }
+
+.essay-textarea {
+  min-height: 200px; resize: vertical;
+  font-size: 15px; line-height: 1.8;
+}
+
+.response-panel {
+  border: 2px solid var(--border); border-radius: 16px;
+  overflow: hidden; transition: all .3s;
+  height: 100%;
+}
+.response-panel.winner { border-color: var(--green); box-shadow: 0 0 0 3px rgba(16,185,129,.15); }
+.response-panel.loser { border-color: var(--red); opacity: .7; }
+.panel-header {
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.panel-label {
+  font-size: 15px; font-weight: 700;
+  display: flex; align-items: center; gap: 8px;
+}
+.panel-label .icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 14px; color: #fff;
+}
+.panel-label .icon.a { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+.panel-label .icon.b { background: linear-gradient(135deg, #f59e0b, #ef4444); }
+.panel-body {
+  padding: 20px;
+  max-height: 500px; overflow-y: auto;
+}
+.model-reveal {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text-mid);
+  background: #f0fdf4; padding: 4px 12px; border-radius: 20px;
+}
+.model-reveal-detail {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px 14px;
+}
+.model-reveal-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.model-reveal-main strong {
+  color: var(--text-dark);
+  font-size: 14px;
+}
+.model-company {
+  color: var(--text-light);
+  font-size: 12px;
+}
+.model-reveal-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+}
+.model-tags {
+  display: flex;
+  gap: 4px;
+}
+.model-tag-vision {
+  background: #fce7f3;
+  color: #db2777;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+.model-tag-tool {
+  background: #dbeafe;
+  color: #2563eb;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+.vote-section { margin-top: 24px; }
+.vote-btn {
+  padding: 14px 28px; border-radius: 12px;
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  border: 2px solid var(--border); background: #fff;
+  transition: all .2s; color: var(--text-mid);
+}
+.vote-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.08); }
+.vote-btn.vote-a:hover { border-color: #6366f1; color: #6366f1; background: #eef2ff; }
+.vote-btn.vote-b:hover { border-color: #f59e0b; color: #f59e0b; background: #fffbeb; }
+.vote-btn.vote-tie:hover { border-color: var(--text-light); color: var(--text-mid); background: #f8fafc; }
+.vote-btn.selected {
+  background: var(--blue); border-color: var(--blue); color: #fff;
+  transform: translateY(-2px); box-shadow: 0 6px 16px rgba(59,130,246,.3);
+}
+
+.generating-overlay {
+  text-align: center; padding: 60px 20px;
+}
+.generating-overlay .loading-spinner { width: 48px; height: 48px; }
+.generating-overlay p { color: var(--text-mid); margin-top: 16px; font-size: 15px; }
+
+.dim-vote-table {
+  border: 1.5px solid var(--border); border-radius: 14px; overflow: hidden;
+}
+.dim-vote-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 80px 80px 1fr;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  transition: background .15s;
+}
+.dim-vote-row:last-child { border-bottom: none; }
+.dim-vote-row:hover { background: #f8fafc; }
+.dim-vote-header {
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  font-size: 12px; font-weight: 600; color: var(--text-light);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.dim-vote-header .dim-choice-col { justify-content: center; }
+.dim-label-col { padding: 14px 18px; }
+.dim-choice-col {
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px 8px;
+}
+.dim-name { font-size: 15px; font-weight: 600; color: var(--text-dark); }
+.dim-desc { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+
+.dim-reason-col {
+  padding: 8px 12px;
+}
+.dim-reason-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  resize: none;
+  min-height: 50px;
+  transition: border-color .2s;
+}
+.dim-reason-input:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+.dim-reason-input::placeholder {
+  color: var(--text-light);
+}
+
+.dim-btn {
+  width: 44px; height: 44px; border-radius: 10px;
+  border: 2px solid var(--border); background: #fff;
+  font-size: 15px; font-weight: 700; cursor: pointer;
+  transition: all .2s; color: var(--text-light);
+}
+.dim-btn:hover { transform: scale(1.08); }
+.dim-btn.dim-a:hover { border-color: #6366f1; color: #6366f1; background: #eef2ff; }
+.dim-btn.dim-b:hover { border-color: #f59e0b; color: #f59e0b; background: #fffbeb; }
+.dim-btn.dim-tie:hover { border-color: #94a3b8; color: #64748b; background: #f8fafc; }
+
+.dim-btn.selected-a {
+  border-color: #6366f1; background: #6366f1; color: #fff;
+  box-shadow: 0 3px 10px rgba(99,102,241,.3);
+}
+.dim-btn.selected-b {
+  border-color: #f59e0b; background: #f59e0b; color: #fff;
+  box-shadow: 0 3px 10px rgba(245,158,11,.3);
+}
+.dim-btn.selected-tie {
+  border-color: #64748b; background: #64748b; color: #fff;
+  box-shadow: 0 3px 10px rgba(100,116,139,.3);
+}
+
+.dim-vote-row.voted { background: #fafdf9; }
+
+.upload-area {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 30px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  background: #fafafa;
+}
+.upload-area:hover {
+  border-color: var(--blue);
+  background: var(--blue-pale);
+}
+.uploaded-image {
+  max-width: 120px;
+  max-height: 120px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.remove-image {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--red);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 20px;
+}
+.img-thumb {
+  position: relative;
+  display: inline-block;
+}
+
+/* 作文内容显示区域 */
+.essay-display {
+  background: var(--cream);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.essay-display-title {
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 8px;
+  color: var(--text-dark);
+}
+.essay-display-content {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-mid);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.essay-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.essay-image-thumb {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  object-fit: cover;
+  cursor: pointer;
+  border: 2px solid var(--border);
+  transition: transform 0.2s, border-color 0.2s;
+}
+.essay-image-thumb:hover {
+  transform: scale(1.05);
+  border-color: var(--blue);
+}
+
+/* 图片预览模态框 */
+.image-modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.85);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+}
+.image-modal.active {
+  display: flex;
+}
+.image-modal img {
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.image-modal-close {
+  position: absolute;
+  top: 20px;
+  right: 30px;
+  color: #fff;
+  font-size: 32px;
+  cursor: pointer;
+  z-index: 10000;
+}
+.image-modal-close:hover {
+  color: var(--blue-light);
+}
+
+.generating-text {
+  color: var(--text-mid);
+  font-size: 14px;
+}
+.typing-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  background: var(--blue);
+  animation: blink 1s infinite;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.cursor-blink {
+  animation: blink 1s infinite;
+  color: var(--blue);
+}
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.streaming-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-dark);
+}
+
+@media (max-width: 640px) {
+  .dim-vote-row { grid-template-columns: 1fr 50px 50px 50px 1fr; }
+  .dim-btn { width: 36px; height: 36px; font-size: 13px; }
+  .dim-label-col { padding: 10px 12px; }
+  .dim-name { font-size: 13px; }
+  .dim-reason-input { min-height: 40px; font-size: 11px; }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar { width: 60px; }
+  .sidebar-logo h1, .sidebar-logo p, .sidebar-link span,
+  .nav-label, .user-name, .user-role { display: none; }
+  .sidebar-logo { padding: 16px 8px; }
+  .logo-icon { margin: 0 auto; }
+  .sidebar-link { justify-content: center; padding: 12px; }
+  .user-card { justify-content: center; padding: 8px; }
+  .main-content { margin-left: 60px; }
+  .page-body { padding: 16px; }
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.text-muted { color: var(--text-light); }
+.text-danger { color: var(--red); }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">🏟️</div>
+    <h1>教育大模型对战评测</h1>
+    <p>作文批改 · 众包评测</p>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-label">评测功能</div>
+    <a href="/battle" class="sidebar-link active">
+      <i class="fa-solid fa-swords" style="font-size:14px;">⚔</i> <span>对战评测</span>
+    </a>
+    <a href="/leaderboard" class="sidebar-link">
+      <i class="fa-solid fa-trophy"></i> <span>排行榜</span>
+    </a>
+    <a href="/history" class="sidebar-link">
+      <i class="fa-solid fa-clock-rotate-left"></i> <span>对战历史</span>
+    </a>
+    <div class="nav-label" id="adminNavLabel" style="display:none;">管理功能</div>
+    <a href="/admin" class="sidebar-link" id="adminNavLink" style="display:none;">
+      <i class="fa-solid fa-gear"></i> <span>后台管理</span>
+    </a>
+    <script>
+    // 立即同步检查角色（零延迟，在HTML解析时执行）
+    if(localStorage.getItem('userRole')==='admin'){
+      document.getElementById('adminNavLabel').style.display='';
+      document.getElementById('adminNavLink').style.display='';
+    }
+    </script>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="user-card">
+      <div class="user-avatar" id="sidebarAvatar">U</div>
+      <div class="user-info">
+        <span class="user-name" id="sidebarName">加载中</span>
+        <span class="user-role" id="sidebarRole">教师</span>
+      </div>
+      <button class="logout-btn" onclick="doLogout()" title="退出登录">
+        <i class="fa fa-right-from-bracket"></i>
+      </button>
+    </div>
+  </div>
+</div>
+<div class="main-content">
+  <div class="page-header">
+    <div>
+      <h2>对战评测</h2>
+      <div class="subtitle">提交作文 - 查看两个模型的匿名批改 - 投票选出更优秀的回答</div>
+    </div>
+  </div>
+
+  <div class="page-body">
+    <div class="step-indicator" id="stepIndicator">
+      <div class="step active" id="step1">
+        <div class="step-num">1</div> 提交作文
+      </div>
+      <div class="step-line"></div>
+      <div class="step" id="step2">
+        <div class="step-num">2</div> 查看批改
+      </div>
+      <div class="step-line"></div>
+      <div class="step" id="step3">
+        <div class="step-num">3</div> 投票评价
+      </div>
+    </div>
+
+    <div id="essaySection">
+      <div class="card">
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label">作文题目 <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="essayTitle"
+                     placeholder="例：我的理想、论坚持的力量">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">年级/学段</label>
+              <select class="form-select" id="gradeLevel">
+                <option value="小学">小学</option>
+                <option value="初中">初中</option>
+                <option value="高中" selected>高中</option>
+                <option value="大学">大学</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">学生作文内容 <span class="text-danger">*</span></label>
+              <textarea class="form-control essay-textarea" id="essayContent"
+                        placeholder="请粘贴或输入学生作文内容（至少50字）..."></textarea>
+              <div class="d-flex justify-content-between mt-2">
+                <small class="text-muted">字数：<span id="wordCount">0</span></small>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label">上传图片（可选）</label>
+              <div class="upload-area" id="uploadArea" onclick="document.getElementById('imageInput').click()">
+                <i class="fa fa-cloud-upload-alt" style="font-size:32px; color:var(--text-light);"></i>
+                <p class="mb-1">点击上传作文图片</p>
+                <small class="text-muted">支持 JPG、PNG、WEBP 格式，最多10张</small>
+              </div>
+              <input type="file" id="imageInput" accept="image/*" multiple style="display:none" onchange="handleImageUpload(this)">
+              <div id="imagePreview" class="d-flex flex-wrap gap-2 mt-2"></div>
+            </div>
+            <div class="col-12">
+              <label class="form-label">批改要求（可选）</label>
+              <input type="text" class="form-control" id="requirements"
+                     placeholder="例：重点关注语言表达和结构逻辑">
+            </div>
+            <div class="col-12">
+              <button class="btn-primary-custom" id="submitBtn" onclick="startBattle()">
+                <i class="fa fa-play me-2"></i>开始对战评测
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mt-3">
+        <div class="card-body">
+          <div class="card-title-sm">示例作文（点击快速填入）</div>
+          <div class="d-flex flex-wrap gap-2">
+            <button class="btn-outline-custom btn-sm" onclick="fillSample(0)">高中议论文</button>
+            <button class="btn-outline-custom btn-sm" onclick="fillSample(1)">初中记叙文</button>
+            <button class="btn-outline-custom btn-sm" onclick="fillSample(2)">小学看图写话</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="generatingSection" style="display:none">
+      <div class="card mb-3">
+        <div class="card-body py-3">
+          <div class="d-flex align-items-center gap-3">
+            <span class="badge badge-blue rounded-pill px-3 py-2" id="genGrade"></span>
+            <strong id="genTitle" style="font-size:15px;"></strong>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 作文内容显示区域 -->
+      <div class="card mb-3" id="genEssayCard" style="display:none">
+        <div class="card-body">
+          <div class="essay-display">
+            <div class="essay-display-title">作文内容</div>
+            <div class="essay-display-content" id="genEssayContent"></div>
+            <div class="essay-images" id="genEssayImages"></div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="generating-overlay">
+          <div class="loading-spinner"></div>
+          <p id="genStatusText">两个 AI 模型正在批改作文中，请稍候...</p>
+          <small class="text-muted">预计需要 30-90 秒</small>
+        </div>
+      </div>
+    </div>
+
+    <div id="battleSection" style="display:none">
+      <div class="card mb-3">
+        <div class="card-body py-3">
+          <div class="d-flex align-items-center gap-3">
+            <span class="badge badge-blue rounded-pill px-3 py-2" id="battleGrade"></span>
+            <strong id="battleTitle" style="font-size:15px;"></strong>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 作文内容显示区域 -->
+      <div class="card mb-3" id="battleEssayCard" style="display:none">
+        <div class="card-body">
+          <div class="essay-display">
+            <div class="essay-display-title">作文内容</div>
+            <div class="essay-display-content" id="battleEssayContent"></div>
+            <div class="essay-images" id="battleEssayImages"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <div class="response-panel" id="panelLeft">
+            <div class="panel-header">
+              <div class="panel-label">
+                <div class="icon a">A</div> 模型 A 的批改
+              </div>
+              <div id="modelLeftReveal"></div>
+            </div>
+            <div class="panel-body md-content" id="responseLeft"></div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="response-panel" id="panelRight">
+            <div class="panel-header">
+              <div class="panel-label">
+                <div class="icon b">B</div> 模型 B 的批改
+              </div>
+              <div id="modelRightReveal"></div>
+            </div>
+            <div class="panel-body md-content" id="responseRight"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="vote-section" id="voteSection" style="display:none">
+        <div class="card">
+          <div class="card-body">
+            <h5 style="font-weight:700; margin-bottom:4px;">请针对每个维度，选择哪个模型的批改更好</h5>
+            <p style="font-size:13px; color:var(--text-mid); margin-bottom:20px;">
+              参考老师给出的5个评测维度，逐一比较两个模型的表现。总冠军由多数维度获胜方决定。
+            </p>
+
+            <div class="dim-vote-table">
+              <div class="dim-vote-row dim-vote-header">
+                <div class="dim-label-col">评测维度</div>
+                <div class="dim-choice-col">模型 A</div>
+                <div class="dim-choice-col">平局</div>
+                <div class="dim-choice-col">模型 B</div>
+                <div class="dim-reason-col">评分理由</div>
+              </div>
+
+              <div class="dim-vote-row" data-dim="theme">
+                <div class="dim-label-col">
+                  <div class="dim-name">主旨</div>
+                  <div class="dim-desc">符合题意、内容具体、中心明确</div>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-a" onclick="setDim('theme','left')">A</button>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-tie" onclick="setDim('theme','tie')">=</button>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-b" onclick="setDim('theme','right')">B</button>
+                </div>
+                <div class="dim-reason-col">
+                  <textarea class="dim-reason-input" id="reason_theme" placeholder="请简述选择理由..." rows="2"></textarea>
+                </div>
+              </div>
+
+              <div class="dim-vote-row" data-dim="imagination">
+                <div class="dim-label-col">
+                  <div class="dim-name">想象</div>
+                  <div class="dim-desc">想象力是否丰富、合理</div>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-a" onclick="setDim('imagination','left')">A</button>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-tie" onclick="setDim('imagination','tie')">=</button>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-b" onclick="setDim('imagination','right')">B</button>
+                </div>
+                <div class="dim-reason-col">
+                  <textarea class="dim-reason-input" id="reason_imagination" placeholder="请简述选择理由..." rows="2"></textarea>
+                </div>
+              </div>
+
+              <div class="dim-vote-row" data-dim="logic">
+                <div class="dim-label-col">
+                  <div class="dim-name">逻辑</div>
+                  <div class="dim-desc">条理是否清楚、结构是否合理</div>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-a" onclick="setDim('logic','left')">A</button>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-tie" onclick="setDim('logic','tie')">=</button>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-b" onclick="setDim('logic','right')">B</button>
+                </div>
+                <div class="dim-reason-col">
+                  <textarea class="dim-reason-input" id="reason_logic" placeholder="请简述选择理由..." rows="2"></textarea>
+                </div>
+              </div>
+
+              <div class="dim-vote-row" data-dim="language">
+                <div class="dim-label-col">
+                  <div class="dim-name">语言</div>
+                  <div class="dim-desc">文笔是否流畅、语病多少</div>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-a" onclick="setDim('language','left')">A</button>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-tie" onclick="setDim('language','tie')">=</button>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-b" onclick="setDim('language','right')">B</button>
+                </div>
+                <div class="dim-reason-col">
+                  <textarea class="dim-reason-input" id="reason_language" placeholder="请简述选择理由..." rows="2"></textarea>
+                </div>
+              </div>
+
+              <div class="dim-vote-row" data-dim="writing">
+                <div class="dim-label-col">
+                  <div class="dim-name">书写</div>
+                  <div class="dim-desc">书写工整、标点格式规范</div>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-a" onclick="setDim('writing','left')">A</button>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-tie" onclick="setDim('writing','tie')">=</button>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-b" onclick="setDim('writing','right')">B</button>
+                </div>
+                <div class="dim-reason-col">
+                  <textarea class="dim-reason-input" id="reason_writing" placeholder="请简述选择理由..." rows="2"></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3 mb-3" id="voteProgress" style="font-size:13px; color:var(--text-light);">
+              已完成 <strong id="votedCount">0</strong> / 5 个维度
+            </div>
+
+            <button class="btn-primary-custom" id="confirmVoteBtn" onclick="submitVote()" disabled>
+              <i class="fa fa-paper-plane me-2"></i>确认投票（请先完成全部 5 个维度）
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="postVoteSection" style="display:none">
+        <div class="card">
+          <div class="card-body text-center py-4">
+            <div style="font-size:48px; margin-bottom:12px;">🎉</div>
+            <h5 style="font-weight:700;">投票成功！</h5>
+            <p class="text-muted" id="eloChangeText"></p>
+            <button class="btn-primary-custom mt-3" onclick="newBattle()">
+              <i class="fa fa-redo me-2"></i>开始新一轮评测
+            </button>
+            <button class="btn-outline-custom mt-3 ms-2" onclick="location.href='/leaderboard'">
+              <i class="fa fa-trophy me-2"></i>查看排行榜
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 图片预览模态框 -->
+<div id="imageModal" class="image-modal" onclick="closeImageModal()">
+  <span class="image-modal-close">&times;</span>
+  <img id="modalImage" src="" alt="图片预览">
+</div>
+
+<div id="toast-container"></div>
+<script src="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/marked/9.1.0/marked.min.js"></script>
+<script>
+// 图片预览功能
+function openImageModal(base64Data) {
+  const modal = document.getElementById('imageModal');
+  const img = document.getElementById('modalImage');
+  img.src = 'data:image/jpeg;base64,' + base64Data;
+  modal.classList.add('active');
+}
+
+function closeImageModal() {
+  const modal = document.getElementById('imageModal');
+  modal.classList.remove('active');
+}
+
+// 渲染作文内容
+function renderEssayContent(containerId, contentId, imagesId, data) {
+  const card = document.getElementById(containerId);
+  const contentEl = document.getElementById(contentId);
+  const imagesEl = document.getElementById(imagesId);
+  
+  // 显示作文文字内容
+  if (data.essayContent && data.essayContent.trim()) {
+    contentEl.textContent = data.essayContent;
+    card.style.display = 'block';
+  }
+  
+  // 显示图片
+  if (data.images && data.images.length > 0) {
+    imagesEl.innerHTML = data.images.map((img, idx) => 
+      '<img class="essay-image-thumb" src="data:image/jpeg;base64,' + img + '" ' +
+      'alt="作文图片' + (idx + 1) + '" onclick="openImageModal(\'' + img + '\')">'
+    ).join('');
+    card.style.display = 'block';
+  }
+}
+
+function showToast(msg, type='') {
+  const c = document.getElementById('toast-container');
+  const d = document.createElement('div');
+  d.className = 'toast-msg ' + type;
+  d.textContent = msg;
+  c.appendChild(d);
+  setTimeout(() => d.remove(), 3000);
+}
+
+function getAuthHeaders() {
+  const token = localStorage.getItem('token');
+  const headers = {'Content-Type':'application/json'};
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return headers;
+}
+
+async function apiPost(url, data) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data)
+  });
+  const json = await r.json();
+  if (json.code === 401) { localStorage.clear(); location.href = '/'; throw {error: '请先登录'}; }
+  if (!r.ok || json.code !== 200) throw {error: json.message || '请求失败'};
+  return json;
+}
+
+async function apiGet(url) {
+  const r = await fetch(url, {headers: getAuthHeaders()});
+  const json = await r.json();
+  if (json.code === 401) { localStorage.clear(); location.href = '/'; throw {error: '请先登录'}; }
+  if (!r.ok || json.code !== 200) throw {error: json.message || '请求失败'};
+  return json;
+}
+
+async function doLogout() {
+  try { await fetch('/api/logout', {method:'POST', headers: getAuthHeaders()}); } catch(e) {}
+  localStorage.clear();
+  location.href = '/';
+}
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  try {
+    text = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return marked.parse(text);
+  }
+  catch(e) { return text.replace(/\n/g, '<br>'); }
+}
+
+async function initSidebar() {
+  // 先从 localStorage 立即显示管理员按钮（避免延迟）
+  const cachedRole = localStorage.getItem('userRole');
+  if (cachedRole === 'admin') {
+    document.getElementById('adminNavLabel').style.display = '';
+    document.getElementById('adminNavLink').style.display = '';
+  }
+  
+  // 异步从服务器获取最新用户信息（更新显示名称等）
+  try {
+    const resp = await apiGet('/api/me');
+    const u = resp.data || resp;
+    document.getElementById('sidebarName').textContent = u.displayName || u.display_name || u.username;
+    document.getElementById('sidebarAvatar').textContent = (u.displayName || u.display_name || u.username)[0].toUpperCase();
+    const roleMap = {admin: '管理员', teacher: '教师'};
+    document.getElementById('sidebarRole').textContent = roleMap[u.role] || u.role;
+    // 再次确认角色（防止本地缓存过期）
+    if (u.role === 'admin') {
+      document.getElementById('adminNavLabel').style.display = '';
+      document.getElementById('adminNavLink').style.display = '';
+      localStorage.setItem('userRole', 'admin');
+    } else {
+      // 角色已变更，隐藏管理按钮
+      document.getElementById('adminNavLabel').style.display = 'none';
+      document.getElementById('adminNavLink').style.display = 'none';
+      localStorage.setItem('userRole', u.role || 'teacher');
+    }
+  } catch(e) {}
+}
+initSidebar();
+
+let currentBattleId = null;
+let battleStartTime = null;
+let dimVotes = { theme: null, imagination: null, logic: null, language: null, writing: null };
+let uploadedImages = [];
+let uploadedBase64 = [];
+let currentEventSource = null;
+let streamingContentA = '';
+let streamingContentB = '';
+let currentModelStreaming = 'A';
+
+document.addEventListener('DOMContentLoaded', async function() {
+  const savedBattleId = localStorage.getItem('ongoing_battle_id');
+  if (savedBattleId) {
+    try {
+      const res = await apiGet(`/api/battle/${savedBattleId}`);
+      const data = res.data;
+      if (data.status === 'generating' || data.status === 'ready') {
+        currentBattleId = parseInt(savedBattleId);
+        if (confirm('检测到您有未完成的对战，是否继续？')) {
+          if (data.status === 'generating') {
+            await startGeneration(currentBattleId);
+          } else {
+            showBattleResults(data);
+          }
+        } else {
+          localStorage.removeItem('ongoing_battle_id');
+        }
+      } else {
+        localStorage.removeItem('ongoing_battle_id');
+      }
+    } catch(e) {
+      localStorage.removeItem('ongoing_battle_id');
+    }
+  }
+});
+
+function saveOngoingBattle(battleId) {
+  localStorage.setItem('ongoing_battle_id', battleId.toString());
+}
+
+function clearOngoingBattle() {
+  localStorage.removeItem('ongoing_battle_id');
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+const samples = [
+  {
+    title: '论坚持的力量',
+    grade: '高中',
+    content: `人生的道路上，我们常常会遇到各种各样的困难和挑战。有人在困难面前选择了退缩，而有人则选择了坚持。我认为，坚持是一种强大的力量，它能够帮助我们克服一切困难，走向成功。
+
+古往今来，无数成功者都是凭借坚持不懈的精神才取得了辉煌的成就。司马迁在遭受宫刑之后，没有放弃，而是忍辱负重，最终完成了《史记》这部伟大的著作。爱迪生在发明电灯的过程中，经历了上千次的失败，但他从未放弃，最终成功地发明了电灯，为人类带来了光明。
+
+在我的学习生活中，我也深刻体会到了坚持的重要性。记得刚开始学习数学竞赛时，那些复杂的题目让我感到无比困难。但是我没有放弃，每天坚持练习，遇到不会的问题就请教老师和同学。渐渐地，我的数学成绩有了明显的提高。
+
+坚持不仅仅是一种行为，更是一种信念。当我们坚定地相信自己能够成功时，我们就有了坚持下去的动力。让我们在人生的道路上，始终保持坚持的精神，勇往直前，去追求自己的梦想吧！`
+  },
+  {
+    title: '那个温暖的冬天',
+    grade: '初中',
+    content: `去年冬天特别冷，北风呼呼地吹着，树叶都掉光了。每天上学的路上，我都把手缩在口袋里，走得飞快。
+
+那天早上，天空飘着小雪，我像往常一样走在上学的路上。突然，我看到路边坐着一位老奶奶，她穿着薄薄的衣服，看起来很冷。我走过去问她怎么了，她说她迷路了，找不到回家的路。
+
+我看了看时间，离上课还有半个小时。我决定帮助老奶奶找到回家的路。我拉着她的手，她的手冰凉冰凉的。我问她住在哪里，她说了一个地名，我知道那个地方，就带着她往那个方向走。
+
+走了大概十分钟，老奶奶认出了自己家附近的商店。她高兴地说："到了到了！"她的眼睛里闪着泪光，一直说谢谢。
+
+那天虽然天气很冷，但是我的心里暖暖的。帮助别人真的是一件很快乐的事情。`
+  },
+  {
+    title: '春天来了',
+    grade: '小学',
+    content: `春天来了，天气变暖和了。小草从地里钻出来了，绿绿的，软软的。花儿也开了，红的、黄的、紫的，好看极了。
+
+小鸟在树上唱歌，叽叽喳喳的，好像在说"春天来了，春天来了"。蝴蝶在花丛中飞来飞去，好像在跳舞。
+
+我和小伙伴们在公园里放风筝。风筝飞得好高好高，像一只小鸟在天上飞。我们跑啊跑啊，开心极了。
+
+春天真美啊！我喜欢春天。`
+  }
+];
+
+function fillSample(idx) {
+  const s = samples[idx];
+  document.getElementById('essayTitle').value = s.title;
+  document.getElementById('essayContent').value = s.content;
+  document.getElementById('gradeLevel').value = s.grade;
+  updateWordCount();
+}
+
+function handleImageUpload(input) {
+  const files = Array.from(input.files);
+  const preview = document.getElementById('imagePreview');
+  const MAX_SIZE = 20 * 1024 * 1024;
+  const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+  
+  files.forEach(file => {
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      showToast('仅支持 PNG、JPEG、WEBP 格式的图片', 'error');
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      showToast('图片大小不能超过 20MB', 'error');
+      return;
+    }
+    if (uploadedImages.length >= 10) {
+      showToast('最多上传10张图片', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      const dataUrl = e.target.result;
+      const base64Data = dataUrl.split(',')[1];
+      uploadedImages.push(dataUrl);
+      uploadedBase64.push(base64Data);
+      const thumb = document.createElement('div');
+      thumb.className = 'img-thumb';
+      thumb.innerHTML = `<img src="${dataUrl}" class="uploaded-image" onclick="openImageModal('${base64Data}')" style="cursor:pointer"><button class="remove-image" onclick="event.stopPropagation();removeImage(${uploadedImages.length - 1})">×</button>`;
+      preview.appendChild(thumb);
+      if (uploadedImages.length >= 10) {
+        document.getElementById('uploadArea').style.display = 'none';
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+function removeImage(idx) {
+  uploadedImages.splice(idx, 1);
+  uploadedBase64.splice(idx, 1);
+  const preview = document.getElementById('imagePreview');
+  preview.innerHTML = '';
+  uploadedImages.forEach((img, i) => {
+    const base64Data = img.split(',')[1];
+    const thumb = document.createElement('div');
+    thumb.className = 'img-thumb';
+    thumb.innerHTML = `<img src="${img}" class="uploaded-image" onclick="openImageModal('${base64Data}')" style="cursor:pointer"><button class="remove-image" onclick="event.stopPropagation();removeImage(${i})">×</button>`;
+    preview.appendChild(thumb);
+  });
+  if (uploadedImages.length < 10) {
+    document.getElementById('uploadArea').style.display = '';
+  }
+}
+
+document.getElementById('essayContent').addEventListener('input', updateWordCount);
+function updateWordCount() {
+  const text = document.getElementById('essayContent').value;
+  document.getElementById('wordCount').textContent = text.length;
+}
+
+function setStep(n) {
+  for (let i = 1; i <= 3; i++) {
+    const el = document.getElementById('step' + i);
+    el.classList.remove('active', 'done');
+    if (i < n) el.classList.add('done');
+    if (i === n) el.classList.add('active');
+  }
+}
+
+async function startBattle() {
+  const title = document.getElementById('essayTitle').value.trim();
+  const content = document.getElementById('essayContent').value.trim();
+  const grade = document.getElementById('gradeLevel').value;
+  const req = document.getElementById('requirements').value.trim();
+
+  if (!title) { showToast('请输入作文题目', 'error'); return; }
+  if (!content && uploadedImages.length === 0) {
+    showToast('请输入作文内容或上传图片', 'error'); return;
+  }
+  if (content && content.length < 10) {
+    showToast('作文内容至少10字', 'error'); return;
+  }
+
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('submitBtn').innerHTML = '<i class="fa fa-spinner fa-spin me-2"></i>创建中...';
+
+  try {
+    const payload = {
+      essay_title: title,
+      grade_level: grade,
+      requirements: req
+    };
+    if (content) payload.essay_content = content;
+    if (uploadedBase64.length > 0) payload.images = uploadedBase64;
+
+    const res = await apiPost('/api/battle/create', payload);
+    currentBattleId = res.data;
+    console.info('[battle] create success, battleId=', currentBattleId);
+    saveOngoingBattle(currentBattleId);
+    await startGeneration(currentBattleId);
+
+  } catch(e) {
+    console.error('[battle] startBattle failed:', e);
+    showToast(e.error || '创建失败', 'error');
+    document.getElementById('submitBtn').disabled = false;
+    document.getElementById('submitBtn').innerHTML = '<i class="fa fa-play me-2"></i>开始对战评测';
+  }
+}
+
+async function startGeneration(battleId) {
+  console.info('[battle] startGeneration begin, battleId=', battleId);
+  try {
+    document.getElementById('essaySection').style.display = 'none';
+    document.getElementById('generatingSection').style.display = '';
+    document.getElementById('battleSection').style.display = 'none';
+    setStep(2);
+
+    const title = document.getElementById('essayTitle').value.trim();
+    const grade = document.getElementById('gradeLevel').value;
+    const content = document.getElementById('essayContent').value.trim();
+
+    const battleGradeEl = document.getElementById('battleGrade');
+    const battleTitleEl = document.getElementById('battleTitle');
+    if (battleGradeEl) battleGradeEl.textContent = grade;
+    if (battleTitleEl) battleTitleEl.textContent = title;
+
+    renderEssayContent('genEssayCard', 'genEssayContent', 'genEssayImages', {
+      essayContent: content,
+      images: uploadedBase64
+    });
+
+    const genStatusText = document.getElementById('genStatusText');
+    if (genStatusText) {
+      genStatusText.textContent = 'AI 正在生成对战结果，请稍候...';
+    }
+  } catch (uiErr) {
+    // UI 渲染异常不应阻断后端生成请求
+    console.error('[battle] pre-fetch UI render failed:', uiErr);
+  }
+
+  try {
+    const token = localStorage.getItem('token');
+    const headers = { 'Accept': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    console.info('[battle] request generate, battleId=', battleId);
+    const response = await fetch(`/api/battle/${battleId}/generate`, { headers });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const res = await response.json();
+    if (!res || !res.data) throw new Error('生成结果为空');
+
+    window.currentBattleData = res.data;
+    showBattleResults(res.data);
+  } catch (e) {
+    showToast('生成失败: ' + (e.message || '未知错误'), 'error');
+    document.getElementById('generatingSection').style.display = 'none';
+    document.getElementById('battleSection').style.display = '';
+    document.getElementById('responseLeft').innerHTML = '<div class="text-danger">模型A生成失败</div>';
+    document.getElementById('responseRight').innerHTML = '<div class="text-danger">模型B生成失败</div>';
+    document.getElementById('voteSection').style.display = '';
+  }
+}
+
+async function finishBattle(battleId) {
+  clearOngoingBattle();
+  setStep(3);
+  document.getElementById('responseLeft').innerHTML = renderMarkdown(streamingContentA);
+  document.getElementById('responseRight').innerHTML = renderMarkdown(streamingContentB);
+
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  try {
+    const res = await apiGet(`/api/battle/${battleId}`);
+    const data = res.data;
+    showBattleResults(data);
+  } catch(e) {
+    document.getElementById('voteSection').style.display = '';
+  }
+
+  battleStartTime = Date.now();
+}
+
+function showBattleResults(data) {
+  window.currentBattleData = data;
+  document.getElementById('generatingSection').style.display = 'none';
+  document.getElementById('essaySection').style.display = 'none';
+  document.getElementById('battleSection').style.display = '';
+  setStep(3);
+  
+  document.getElementById('battleTitle').textContent = data.essay_title;
+  document.getElementById('battleGrade').textContent = data.grade_level;
+  document.getElementById('responseLeft').innerHTML = renderMarkdown(data.response_left || '');
+  document.getElementById('responseRight').innerHTML = renderMarkdown(data.response_right || '');
+
+  // 显示作文内容
+  renderEssayContent('battleEssayCard', 'battleEssayContent', 'battleEssayImages', {
+    essayContent: data.essay_content,
+    images: data.images
+  });
+
+  if (data.model_left) {
+    document.getElementById('modelLeftReveal').innerHTML =
+      `<div class="model-reveal"><i class="fa fa-robot"></i> ${data.model_left.name} · ${data.model_left.company}</div>`;
+  }
+  if (data.model_right) {
+    document.getElementById('modelRightReveal').innerHTML =
+      `<div class="model-reveal"><i class="fa fa-robot"></i> ${data.model_right.name} · ${data.model_right.company}</div>`;
+  }
+  
+  if (data.status === 'ready') {
+    document.getElementById('voteSection').style.display = '';
+    document.getElementById('postVoteSection').style.display = 'none';
+  } else if (data.status === 'voted') {
+    showPostVote(data);
+  } else {
+    document.getElementById('voteSection').style.display = '';
+  }
+
+  battleStartTime = Date.now();
+}
+
+function setDim(dim, choice) {
+  dimVotes[dim] = choice;
+  const row = document.querySelector(`.dim-vote-row[data-dim="${dim}"]`);
+  row.querySelectorAll('.dim-btn').forEach(b => {
+    b.classList.remove('selected-a', 'selected-b', 'selected-tie');
+  });
+  const clsMap = { left: 'selected-a', right: 'selected-b', tie: 'selected-tie' };
+  const btnMap = { left: '.dim-a', right: '.dim-b', tie: '.dim-tie' };
+  row.querySelector(btnMap[choice]).classList.add(clsMap[choice]);
+  row.classList.add('voted');
+
+  const count = Object.values(dimVotes).filter(v => v !== null).length;
+  document.getElementById('votedCount').textContent = count;
+
+  const btn = document.getElementById('confirmVoteBtn');
+  if (count === 5) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa fa-paper-plane me-2"></i>确认投票';
+  } else {
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa fa-paper-plane me-2"></i>确认投票（还剩 ${5 - count} 个维度）`;
+  }
+}
+
+async function submitVote() {
+  const unfinished = Object.entries(dimVotes).find(([k,v]) => v === null);
+  if (unfinished) {
+    const nameMap = {theme:'主旨',imagination:'想象',logic:'逻辑',language:'语言',writing:'书写'};
+    showToast(`请完成「${nameMap[unfinished[0]]}」维度的投票`, 'error');
+    return;
+  }
+
+  const voteTime = (Date.now() - battleStartTime) / 1000;
+  
+  const dimReasons = {};
+  ['theme', 'imagination', 'logic', 'language', 'writing'].forEach(dim => {
+    const el = document.getElementById(`reason_${dim}`);
+    dimReasons[dim] = el ? el.value.trim() : '';
+  });
+
+  document.getElementById('confirmVoteBtn').disabled = true;
+  document.getElementById('confirmVoteBtn').innerHTML = '<i class="fa fa-spinner fa-spin me-2"></i>提交中...';
+
+  try {
+    const payload = {
+      dim_theme: dimVotes.theme,
+      dim_imagination: dimVotes.imagination,
+      dim_logic: dimVotes.logic,
+      dim_language: dimVotes.language,
+      dim_writing: dimVotes.writing,
+      dim_theme_reason: dimReasons.theme,
+      dim_imagination_reason: dimReasons.imagination,
+      dim_logic_reason: dimReasons.logic,
+      dim_language_reason: dimReasons.language,
+      dim_writing_reason: dimReasons.writing,
+      vote_time: voteTime,
+    };
+    console.info('[battle] submitVote payload:', payload);
+    const res = await apiPost(`/api/battle/${currentBattleId}/vote`, payload);
+
+    showPostVote(res.data);
+    showToast('投票成功！', 'success');
+  } catch(e) {
+    showToast(e.error || '投票失败', 'error');
+    document.getElementById('confirmVoteBtn').disabled = false;
+    document.getElementById('confirmVoteBtn').innerHTML = '<i class="fa fa-paper-plane me-2"></i>确认投票';
+  }
+}
+
+function showPostVote(voteRes) {
+  document.getElementById('voteSection').style.display = 'none';
+  document.getElementById('postVoteSection').style.display = '';
+
+  const battle = window.currentBattleData || null;
+  const leftSlot = voteRes ? (voteRes.leftModelSlot ?? voteRes.left_model_slot) : '';
+  const rightSlot = voteRes ? (voteRes.rightModelSlot ?? voteRes.right_model_slot) : '';
+  const eloAAfter = voteRes ? (voteRes.eloAAfter ?? voteRes.elo_a_after ?? voteRes.elo_aafter ?? voteRes.eloaAfter) : undefined;
+  const eloBAfter = voteRes ? (voteRes.eloBAfter ?? voteRes.elo_b_after ?? voteRes.elo_bafter ?? voteRes.elobAfter) : undefined;
+  const leftEloAfter = leftSlot === 'A' ? eloAAfter : leftSlot === 'B' ? eloBAfter : undefined;
+  const rightEloAfter = rightSlot === 'A' ? eloAAfter : rightSlot === 'B' ? eloBAfter : undefined;
+  if (battle && battle.model_left) {
+    const m = battle.model_left;
+    const tags = [];
+    if (m.input_modalities && (m.input_modalities.includes('image') || m.input_modalities.includes('vision'))) {
+      tags.push('<span class="model-tag-vision">视觉</span>');
+    }
+    if (m.features && m.features.includes('tool')) {
+      tags.push('<span class="model-tag-tool">工具</span>');
+    }
+    document.getElementById('modelLeftReveal').innerHTML =
+      `<div class="model-reveal model-reveal-detail">
+        <div class="model-reveal-main"><i class="fa fa-robot"></i> <strong>${m.name}</strong> <span class="model-company">${m.company || ''}</span></div>
+        <div class="model-reveal-meta"><span>Elo: ${leftEloAfter ?? m.elo_score ?? 1500}</span>${m.context_length ? '<span>上下文: ' + formatNum(m.context_length) + '</span>' : ''}<div class="model-tags">${tags.join('')}</div></div>
+      </div>`;
+  }
+  if (battle && battle.model_right) {
+    const m = battle.model_right;
+    const tags = [];
+    if (m.input_modalities && (m.input_modalities.includes('image') || m.input_modalities.includes('vision'))) {
+      tags.push('<span class="model-tag-vision">视觉</span>');
+    }
+    if (m.features && m.features.includes('tool')) {
+      tags.push('<span class="model-tag-tool">工具</span>');
+    }
+    document.getElementById('modelRightReveal').innerHTML =
+      `<div class="model-reveal model-reveal-detail">
+        <div class="model-reveal-main"><i class="fa fa-robot"></i> <strong>${m.name}</strong> <span class="model-company">${m.company || ''}</span></div>
+        <div class="model-reveal-meta"><span>Elo: ${rightEloAfter ?? m.elo_score ?? 1500}</span>${m.context_length ? '<span>上下文: ' + formatNum(m.context_length) + '</span>' : ''}<div class="model-tags">${tags.join('')}</div></div>
+      </div>`;
+  }
+
+  if (voteRes) {
+    const aWins = voteRes.aWins ?? voteRes.a_wins ?? voteRes.awins ?? 0;
+    const bWins = voteRes.bWins ?? voteRes.b_wins ?? voteRes.bwins ?? 0;
+    const overallWinner = voteRes.overallWinner ?? voteRes.overall_winner ?? '';
+    let summary = '维度投票结果：A方赢 ' + aWins + ' 个维度，B方赢 ' + bWins + ' 个维度';
+    if (overallWinner === 'tie') summary += '，总评：平局';
+    else if (overallWinner === 'A') summary += '，总冠军：A方';
+    else if (overallWinner === 'B') summary += '，总冠军：B方';
+    const eloABefore = voteRes.eloABefore ?? voteRes.elo_a_before ?? voteRes.elo_abefore ?? voteRes.eloaBefore;
+    const eloAAfter = voteRes.eloAAfter ?? voteRes.elo_a_after ?? voteRes.elo_aafter ?? voteRes.eloaAfter;
+    const eloBBefore = voteRes.eloBBefore ?? voteRes.elo_b_before ?? voteRes.elo_bbefore ?? voteRes.elobBefore;
+    const eloBAfter = voteRes.eloBAfter ?? voteRes.elo_b_after ?? voteRes.elo_bafter ?? voteRes.elobAfter;
+    const hasElo = eloABefore !== undefined && eloAAfter !== undefined && eloBBefore !== undefined && eloBAfter !== undefined;
+    if (hasElo) {
+      summary += `｜ELO A: ${eloABefore}→${eloAAfter}, B: ${eloBBefore}→${eloBAfter}`;
+    }
+    document.getElementById('eloChangeText').textContent = summary;
+  }
+
+  const panelLeft = document.getElementById('panelLeft');
+  const panelRight = document.getElementById('panelRight');
+  panelLeft.classList.remove('winner', 'loser');
+  panelRight.classList.remove('winner', 'loser');
+  
+  // 统一逻辑：A 永远在左，B 永远在右
+  const overallWinner = voteRes ? (voteRes.overallWinner ?? voteRes.overall_winner) : '';
+  if (overallWinner) {
+    if (overallWinner === 'A') {
+      panelLeft.classList.add('winner');
+      panelRight.classList.add('loser');
+    } else if (overallWinner === 'B') {
+      panelLeft.classList.add('loser');
+      panelRight.classList.add('winner');
+    }
+  }
+}
+
+function formatNum(num) {
+  if (!num) return '-';
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(0) + 'K';
+  return num.toString();
+}
+
+function newBattle() {
+  currentBattleId = null;
+  battleStartTime = null;
+  dimVotes = { theme: null, imagination: null, logic: null, language: null, writing: null };
+  uploadedImages = [];
+  uploadedBase64 = [];
+  streamingContentA = '';
+  streamingContentB = '';
+  currentModelStreaming = 'A';
+  clearOngoingBattle();
+  window.currentBattleData = null;
+  
+  document.getElementById('essaySection').style.display = '';
+  document.getElementById('generatingSection').style.display = 'none';
+  document.getElementById('battleSection').style.display = 'none';
+  document.getElementById('voteSection').style.display = '';
+  document.getElementById('postVoteSection').style.display = 'none';
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('submitBtn').innerHTML = '<i class="fa fa-play me-2"></i>开始对战评测';
+  document.getElementById('confirmVoteBtn').disabled = true;
+  document.getElementById('confirmVoteBtn').innerHTML = '<i class="fa fa-paper-plane me-2"></i>确认投票（请先完成全部 5 个维度）';
+  document.getElementById('votedCount').textContent = '0';
+
+  document.querySelectorAll('.dim-btn').forEach(b => b.classList.remove('selected-a', 'selected-b', 'selected-tie'));
+  document.querySelectorAll('.dim-vote-row').forEach(r => r.classList.remove('voted'));
+  
+  ['theme', 'imagination', 'logic', 'language', 'writing'].forEach(dim => {
+    const el = document.getElementById(`reason_${dim}`);
+    if (el) el.value = '';
+  });
+
+  document.querySelectorAll('.response-panel').forEach(p => p.classList.remove('winner', 'loser'));
+  document.getElementById('modelLeftReveal').innerHTML = '';
+  document.getElementById('modelRightReveal').innerHTML = '';
+  document.getElementById('essayTitle').value = '';
+  document.getElementById('essayContent').value = '';
+  document.getElementById('requirements').value = '';
+  document.getElementById('wordCount').textContent = '0';
+  document.getElementById('eloChangeText').textContent = '';
+  document.getElementById('imagePreview').innerHTML = '';
+  document.getElementById('uploadArea').style.display = '';
+  setStep(1);
+}
+</script>
+</body>
+</html>

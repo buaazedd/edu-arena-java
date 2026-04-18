@@ -1,0 +1,26 @@
+# 默认忽略所有文件
+*
+
+# 允许遍历目录（否则无法重新包含子文件）
+!*/
+
+# 保留当前忽略规则文件
+!.gitignore
+
+# 保留根目录关键文件
+!pom.xml
+!requirements.txt
+!README.md
+
+# 保留 Java 代码
+!src/
+!src/main/
+!src/main/java/
+!src/main/java/**
+
+# 保留资源目录（按你的要求完整保留）
+!src/main/resources/
+!src/main/resources/**
+
+# 保留 Python 代码（任意目录）
+!**/*.py

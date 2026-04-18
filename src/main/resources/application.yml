@@ -1,0 +1,84 @@
+server:
+  port: 5001
+  tomcat:
+    max-http-form-post-size: 100MB
+    max-swallow-size: 100MB
+
+spring:
+  application:
+    name: edu-arena
+  
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+  
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://180.76.229.245:3306/edu_arena?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: zyd123
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 30000
+      max-lifetime: 1800000
+  
+  data:
+    redis:
+      host: 180.76.229.245
+      port: 6379
+      password: zyd123
+      database: 0
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 5
+          min-idle: 1
+          max-wait: 3000
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+  global-config:
+    db-config:
+      id-type: auto
+
+# JWT配置
+jwt:
+  secret: edu-arena-secret-key-must-be-at-least-256-bits-long-for-security
+  expiration: 86400000
+
+# AI API配置
+ai:
+  api-key: sk-LEc0CxRia23Ti4NqA1Ee05Be8c1a41E09c25DbEa30Db080e
+  base-url: https://api.aihubmix.com/v1/chat/completions
+
+# Knife4j配置
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+
+edu-arena:
+  auth-bypass-enabled: false
+  auth-bypass-role: admin
+  auth-bypass-user-id: 1
+  auth-bypass-username: local-dev
+
+logging:
+  level:
+    com.edu.arena: DEBUG
+    com.baomidou: DEBUG
+  charset:
+    console: UTF-8
+    file: UTF-8
