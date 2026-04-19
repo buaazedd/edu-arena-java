@@ -150,3 +150,94 @@ RERANK_API_KEY=sk-xxx
 - `GET /review/jobs/{jobId}` (status)
 - `GET /review/jobs/{jobId}/result` (result)
 - `POST /review/run` (sync run)
+
+---
+
+## 6) 批量跑 writing/ 的主流程（不改平台端）
+
+已新增可直接运行的骨架：
+
+- `app/battle_runner.py`：主流程 runner
+- `app/arena_client.py`：对战平台接口客户端（login/create/generate/vote）
+- `app/arena_dto.py`：按当前 Java 接口字段定义的请求/响应 DTO
+- `app/task_store_mysql.py`：MySQL 任务状态存储
+- `app/writing_loader.py`：读取 `../writing/label_cn.txt`
+- `sql/agent_review_tables.sql`：建表 SQL
+
+### 6.1 先建表
+
+在 MySQL 执行：
+
+```sql
+SOURCE sql/agent_review_tables.sql;
+```
+
+### 6.2 配置 .env
+
+至少配置以下字段：
+
+```bash
+ARENA_BASE_URL=http://<你的公网IP>:5001
+ARENA_USERNAME=agent_reviewer
+ARENA_PASSWORD=123456
+
+# 推荐 JSON 输入模式（先跑 1~2 条）
+WRITING_JSON_FILE=./data/writing_test_2cases.json
+
+DB_HOST=180.76.229.245
+DB_PORT=3306
+DB_NAME=edu_arena
+DB_USER=root
+DB_PASSWORD=zyd123
+```
+
+### 6.3 先跑通 2 条测试样本
+
+仓库已提供：
+
+- `data/writing_test_2cases.json`
+
+直接运行：
+
+```bash
+python -m app.battle_runner
+```
+
+### 6.4 从 label_cn.txt 生成全量 JSON
+
+执行：
+
+```bash
+python -m app.build_writing_json
+```
+
+会生成：
+
+- `data/writing_dataset_all.json`
+
+然后将 `.env` 里的：
+
+```bash
+WRITING_JSON_FILE=./data/writing_dataset_all.json
+```
+
+再运行：
+
+```bash
+python -m app.battle_runner
+```
+
+### 6.5 运行流程
+
+1. 登录平台
+2. 读取 JSON 素材并入任务表
+3. 调 `/api/battle/create`（含 essay_content + images base64）
+4. 调 `/api/battle/{id}/generate`
+5. Agent 评审并映射到 `left/right/tie`
+6. 调 `/api/battle/{id}/vote` 落库
+
+### 6.6 说明
+
+- 当前 `SimpleAgentReviewer` 是可替换骨架（规则版），你可以替换为现有 LangGraph 评审输出。
+- 任务表支持重试和断点续跑。
+- 未改动 Java 平台端代码，全部通过现有接口完成闭环。

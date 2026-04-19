@@ -16,6 +16,7 @@ import com.edu.arena.aiclient.AiClient;
 import com.edu.arena.common.cache.CacheService;
 import com.edu.arena.common.exception.BusinessException;
 import com.edu.arena.common.utils.EloCalculator;
+import com.edu.arena.common.utils.ImageCompressUtils;
 import com.edu.arena.dto.request.CreateBattleRequest;
 import com.edu.arena.dto.request.VoteRequest;
 import com.edu.arena.dto.response.BattleHistoryVO;
@@ -120,29 +121,57 @@ public class BattleServiceImpl implements BattleService {
             throw new BusinessException("请提供作文内容或上传图片");
         }
 
-        if (request.getEssayContent() != null && request.getEssayContent().length() < 10) {
-            throw new BusinessException("内容至少10字");
+        if (request.getEssayContent() != null && request.getEssayContent().trim().length() < 10) {
+            if (request.getImages() == null || request.getImages().isEmpty()) {
+                throw new BusinessException("内容至少10字");
+            }
+            log.info("纯图片作文模式: essayContent长度不足10，自动置空，依赖图片输入");
+            request.setEssayContent(null);
         }
 
-        // 验证图片
+        // 验证图片并压缩
         if (request.getImages() != null && !request.getImages().isEmpty()) {
             if (request.getImages().size() > 10) {
                 throw new BusinessException("最多上传10张图片");
             }
-            // 验证每张图片大小 (Base64编码后约为原大小的1.37倍，20MB * 1.37 ≈ 27.4MB)
-            int maxBase64Length = 30 * 1024 * 1024; // 30MB的Base64字符串长度
-            for (String base64 : request.getImages()) {
-                if (base64 != null && base64.length() > maxBase64Length) {
-                    throw new BusinessException("单张图片大小不能超过20MB");
+
+            List<String> compressedImages = new ArrayList<>();
+            for (int i = 0; i < request.getImages().size(); i++) {
+                String base64 = request.getImages().get(i);
+                if (base64 == null || base64.isBlank()) {
+                    log.warn("图片内容为空，跳过压缩: index={}", i);
+                    continue;
+                }
+
+                try {
+                    int originalLen = base64.length();
+                    String compressed = ImageCompressUtils.compressBase64Image(base64);
+                    if (compressed == null || compressed.isBlank()) {
+                        log.warn("图片压缩结果为空，回退原图: index={}, originalLen={}", i, originalLen);
+                        compressedImages.add(base64);
+                        continue;
+                    }
+
+                    compressedImages.add(compressed);
+                    log.info("图片压缩完成: index={}, originalBase64Len={}, compressedBase64Len={}, savedRatio={}%, hasChange={}",
+                            i,
+                            originalLen,
+                            compressed.length(),
+                            String.format("%.1f", compressed.length() * 100.0 / originalLen),
+                            !compressed.equals(base64));
+                } catch (Exception e) {
+                    log.warn("图片压缩失败，回退原图: index={}, err={}", i, e.getMessage(), e);
+                    compressedImages.add(base64);
                 }
             }
+            request.setImages(compressedImages);
         }
 
         // 创建Task
         Task task = new Task();
         task.setUserId(userId);
         task.setEssayTitle(request.getEssayTitle());
-        task.setEssayContent(request.getEssayContent() != null ? request.getEssayContent() : "");
+        task.setEssayContent(request.getEssayContent() != null ? request.getEssayContent() : null);
         task.setGradeLevel(request.getGradeLevel());
         task.setRequirements(request.getRequirements());
         
