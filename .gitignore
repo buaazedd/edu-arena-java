@@ -17,10 +17,17 @@
 !src/main/
 !src/main/java/
 !src/main/java/**
+!src/test/
+!src/test/java/
+!src/test/java/**
 
 # 保留资源目录（按你的要求完整保留）
 !src/main/resources/
 !src/main/resources/**
+
+# 保留数据文件
+!data/
+!data/**
 
 # 保留 Python 代码（任意目录）
 !**/*.py
