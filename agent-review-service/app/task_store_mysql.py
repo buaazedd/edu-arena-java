@@ -70,6 +70,11 @@ class TaskStoreMySQL:
           requirements = VALUES(requirements),
           image_paths_json = VALUES(image_paths_json)
         """
+        essay_title = (essay_title or "")[:9999]
+        source_file = (source_file or "")[:255]
+        grade_level = (grade_level or "")[:20]
+        requirements = (requirements or "")[:1000]
+
         with self._conn() as conn, conn.cursor() as cur:
             cur.execute(
                 sql,
@@ -96,13 +101,25 @@ class TaskStoreMySQL:
         self._update(task_key, "GENERATED", battle_id=battle_id, last_error=None)
 
     def mark_voted(self, task_key: str, payload: dict[str, Any]) -> None:
+        agent_winner = None
+        if isinstance(payload, dict):
+            agent_winner = payload.get("agent_winner")
+            if agent_winner is None:
+                review_payload = payload.get("review_payload")
+                if isinstance(review_payload, dict):
+                    agent_winner = review_payload.get("overall_winner")
+            if agent_winner is None:
+                vote_resp = payload.get("vote_response")
+                if isinstance(vote_resp, dict):
+                    agent_winner = vote_resp.get("overall_winner")
+
         sql = """
         UPDATE agent_review_task
-        SET status='VOTED', review_payload=%s, last_error=NULL, updated_at=NOW()
+        SET status='VOTED', agent_winner=%s, review_payload=%s, last_error=NULL, updated_at=NOW()
         WHERE task_key=%s
         """
         with self._conn() as conn, conn.cursor() as cur:
-            cur.execute(sql, (json.dumps(payload, ensure_ascii=False), task_key))
+            cur.execute(sql, (agent_winner, json.dumps(payload, ensure_ascii=False, default=str), task_key))
 
     def mark_failed(self, task_key: str, error: str) -> None:
         sql = """

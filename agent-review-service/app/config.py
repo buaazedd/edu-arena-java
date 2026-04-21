@@ -25,17 +25,17 @@ class Settings:
     review_version: str = "graph_v1.4.0"
     default_confidence_threshold: float = 0.65
 
-    llm_api_key: str = os.getenv("LLM_API_KEY", "")
-    llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.aihubmix.com/v1")
-    llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    llm_api_key: str = os.getenv("LLM_API_KEY", os.getenv("AIHUBMIX_API_KEY", os.getenv("OPENAI_API_KEY", "")))
+    llm_base_url: str = os.getenv("LLM_BASE_URL", os.getenv("AIHUBMIX_BASE_URL", "https://api.aihubmix.com/v1"))
+    llm_model: str = os.getenv("LLM_MODEL", "claude-sonnet-4-6")
     judge_panel_models: List[str] = field(
         default_factory=lambda: _env_csv(
             "JUDGE_PANEL_MODELS",
-            "o3,gemini-2.5-pro,claude-opus-4-1-20250805",
+            "qwen3.6-plus,gemini-2.5-pro,claude-sonnet-4-6",
         )
     )
     judge_panel_size: int = int(os.getenv("JUDGE_PANEL_SIZE", "3"))
-    aggregate_model: str = os.getenv("AGGREGATE_MODEL", "")
+    aggregate_model: str = os.getenv("AGGREGATE_MODEL", "claude-sonnet-4-6")
 
     # RAG / Vector DB
     vector_db_path: str = os.getenv("VECTOR_DB_PATH", os.path.abspath("./data/chroma"))
@@ -49,8 +49,8 @@ class Settings:
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
 
     # api provider
-    aihubmix_api_key: str = os.getenv("AIHUBMIX_API_KEY", "")
-    embedding_api_key: str = os.getenv("EMBEDDING_API_KEY", os.getenv("AIHUBMIX_API_KEY", ""))
+    aihubmix_api_key: str = os.getenv("AIHUBMIX_API_KEY", os.getenv("LLM_API_KEY", os.getenv("OPENAI_API_KEY", "")))
+    embedding_api_key: str = os.getenv("EMBEDDING_API_KEY", os.getenv("AIHUBMIX_API_KEY", os.getenv("LLM_API_KEY", "")))
     embedding_api_base_url: str = os.getenv("EMBEDDING_API_BASE_URL", "https://aihubmix.com/v1")
     embedding_api_model: str = os.getenv("EMBEDDING_API_MODEL", "gemini-embedding-001")
 

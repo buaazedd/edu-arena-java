@@ -2,17 +2,26 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import time
 import uuid
 from pathlib import Path
 
 from app.arena_client import ArenaClient
-from app.arena_dto import ArenaCreateBattleRequest
+from app.multi_agent_adapter import MultiAgentAdapter
 from app.runner_config import runner_settings
-from app.simple_agent_reviewer import SimpleAgentReviewer
+from app.review_contract import ReviewCase
 from app.task_store_mysql import TaskStoreMySQL
-from app.writing_dataset import JsonWritingSample, load_samples_from_json, to_create_battle_request
+from app.test_cases_loader import load_test_cases
+from app.writing_dataset import JsonWritingSample, to_create_battle_request
 from app.writing_loader import load_writing_samples
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 
 def _task_key_from_json_sample(s: JsonWritingSample) -> str:
@@ -22,33 +31,36 @@ def _task_key_from_json_sample(s: JsonWritingSample) -> str:
 
 def run_batch() -> None:
     run_id = f"run_{uuid.uuid4().hex[:8]}"
-    print(f"[RUN] {run_id} start")
+    logger.info("[RUN] %s start", run_id)
 
     store = TaskStoreMySQL()
     client = ArenaClient()
-    reviewer = SimpleAgentReviewer()
+    reviewer = MultiAgentAdapter()
 
     login_data = client.login()
-    print(f"[AUTH] login ok, role={login_data.role}")
+    logger.info("[AUTH] login ok, role=%s", login_data.role)
 
     if runner_settings.writing_json_file:
-        json_file = runner_settings.writing_json_file
-        samples = load_samples_from_json(json_file)[: runner_settings.batch_limit]
-        for s in samples:
+        samples = load_test_cases(runner_settings.writing_json_file)[: runner_settings.batch_limit]
+    else:
+        samples = load_writing_samples(limit=runner_settings.batch_limit)
+
+    logger.info("[TASK] samples=%s", len(samples))
+
+    for s in samples:
+        image_paths = list(s.image_paths or [])
+        if runner_settings.writing_json_file:
             store.upsert_pending(
                 task_key=_task_key_from_json_sample(s),
                 sample_id=s.sample_id,
-                source_file=json_file,
+                source_file=runner_settings.writing_json_file,
                 essay_title=s.essay_title,
                 essay_content=s.essay_content,
                 grade_level=s.grade_level,
                 requirements=s.requirements,
-                image_paths_json=json.dumps(s.image_paths, ensure_ascii=False),
+                image_paths_json=json.dumps(image_paths, ensure_ascii=False),
             )
-    else:
-        # 兼容旧模式（label_cn.txt）
-        samples = load_writing_samples(limit=runner_settings.batch_limit)
-        for s in samples:
+        else:
             store.upsert_pending(
                 task_key=s.task_key,
                 sample_id=s.sample_id,
@@ -57,87 +69,74 @@ def run_batch() -> None:
                 essay_content=s.essay_content,
                 grade_level=s.grade_level,
                 requirements=s.requirements,
-                image_paths_json=json.dumps(s.image_paths or [], ensure_ascii=False),
+                image_paths_json=json.dumps(image_paths, ensure_ascii=False),
             )
 
     tasks = store.fetch_runnable(limit=runner_settings.batch_limit)
-    print(f"[TASK] runnable={len(tasks)}")
+    logger.info("[TASK] runnable=%s", len(tasks))
 
     for t in tasks:
         try:
-            # 1) create battle
             image_paths = json.loads(t.image_paths_json or "[]")
-            req = ArenaCreateBattleRequest(
+            sample = JsonWritingSample(
+                sample_id=t.sample_id,
                 essay_title=t.essay_title,
                 essay_content=t.essay_content,
                 grade_level=t.grade_level,
                 requirements=t.requirements,
-                images=[],
+                image_paths=image_paths,
             )
             if runner_settings.writing_json_file:
-                sample = JsonWritingSample(
-                    sample_id=t.sample_id,
-                    essay_title=t.essay_title,
-                    essay_content=t.essay_content,
-                    grade_level=t.grade_level,
-                    requirements=t.requirements,
-                    image_paths=image_paths,
-                )
                 req = to_create_battle_request(sample, json_file=runner_settings.writing_json_file)
-            elif image_paths:
-                # 旧模式：label_cn.txt 路径相对于项目根目录（edu-arena-java）
-                sample = JsonWritingSample(
-                    sample_id=t.sample_id,
-                    essay_title=t.essay_title,
-                    essay_content=t.essay_content,
-                    grade_level=t.grade_level,
-                    requirements=t.requirements,
-                    image_paths=image_paths,
-                )
+            else:
                 label_base = str((Path(__file__).resolve().parents[2] / "writing" / "label_cn.txt").resolve())
                 req = to_create_battle_request(sample, json_file=label_base)
 
             battle_id = client.create_battle(req)
             store.mark_created(t.task_key, battle_id)
-            print(f"[CREATE] sample={t.sample_id}, battle={battle_id}")
+            logger.info("[CREATE] sample=%s battle=%s", t.sample_id, battle_id)
 
-            # 2) generate
             battle = client.generate_battle(battle_id)
             store.mark_generated(t.task_key, battle_id)
 
-            left = battle.response_left or ""
-            right = battle.response_right or ""
-
-            # 3) agent review
-            agent_vote = reviewer.review(
+            case = ReviewCase(
+                sample_id=t.sample_id,
                 essay_title=battle.essay_title or t.essay_title,
-                essay_content=battle.essay_content or t.essay_content or "",
-                left_text=left,
-                right_text=right,
+                essay_content=battle.essay_content or t.essay_content,
+                image_paths=image_paths,
+                left_text=battle.response_left or "",
+                right_text=battle.response_right or "",
+                model_left=(battle.model_left.name if battle.model_left else None),
+                model_right=(battle.model_right.name if battle.model_right else None),
+                battle_id=battle_id,
             )
+            agent_vote = reviewer.review(case)
 
-            # 4) submit vote
             vote_req = client.map_agent_vote_to_arena_vote(agent_vote)
             vote_resp = client.vote(battle_id, vote_req)
 
-            # 5) mark done
-            store.mark_voted(
-                t.task_key,
-                {
-                    "battle_id": battle_id,
-                    "agent_vote": agent_vote.model_dump(),
-                    "vote_response": vote_resp,
-                },
+            review_payload = {
+                "battle_id": battle_id,
+                "agent_winner": agent_vote.overall_winner,
+                "review_payload": agent_vote.to_dict(),
+                "vote_response": vote_resp,
+            }
+            store.mark_voted(t.task_key, review_payload)
+            logger.info(
+                "[VOTE] sample=%s battle=%s ok agent_winner=%s review=%s",
+                t.sample_id,
+                battle_id,
+                agent_vote.overall_winner,
+                agent_vote.to_dict(),
             )
-            print(f"[VOTE] sample={t.sample_id}, battle={battle_id}, ok")
 
             time.sleep(0.2)
 
         except Exception as ex:
             store.mark_failed(t.task_key, str(ex))
-            print(f"[FAIL] sample={t.sample_id}, err={ex}")
+            logger.exception("[FAIL] sample=%s err=%s", t.sample_id, ex)
 
-    print(f"[RUN] {run_id} done")
+    logger.info("[RUN] %s done", run_id)
 
 
 if __name__ == "__main__":

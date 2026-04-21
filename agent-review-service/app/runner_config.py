@@ -17,7 +17,7 @@ class RunnerSettings:
 
     writing_dir: str = os.getenv("WRITING_DIR", os.path.abspath("../writing"))
     writing_file: str = os.getenv("WRITING_FILE", "label_cn.txt")
-    writing_json_file: str = os.getenv("WRITING_JSON_FILE", "")
+    writing_json_file: str | None = os.getenv("WRITING_JSON_FILE") or None
 
     prompt_version: str = os.getenv("PROMPT_VERSION", "agent_v1")
     batch_limit: int = int(os.getenv("BATCH_LIMIT", "50"))

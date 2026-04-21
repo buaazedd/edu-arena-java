@@ -15,13 +15,13 @@ BASE_RUBRIC = {
 
 
 DIMENSION_JSON_SCHEMA = (
-    '{"winner":"A|B|tie","scoreA":0-10,"scoreB":0-10,'
-    '"confidence":0-1,"reason":"...","evidenceA":["..."],"evidenceB":["..."]}'
+    '{{"winner":"A|B|tie","scoreA":0-10,"scoreB":0-10,'
+    '"confidence":0-1,"reason":"...","evidenceA":["..."],"evidenceB":["..."]}}'
 )
 
 AGGREGATE_JSON_SCHEMA = (
-    '{"winner":"A|B|tie","confidence":0-1,"needsHuman":true,'
-    '"summary":"...","panelConsensus":"high|medium|low"}'
+    '{{"winner":"A|B|tie","confidence":0-1,"needsHuman":true,'
+    '"summary":"...","panelConsensus":"high|medium|low"}}'
 )
 
 

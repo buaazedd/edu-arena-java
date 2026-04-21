@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
@@ -20,6 +21,14 @@ from app.models import (
 )
 from app.retrieval import RetrievalService
 
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logging.getLogger("app.graph").setLevel(logging.INFO)
+logging.getLogger("app.retrieval").setLevel(logging.INFO)
+logging.getLogger("app.llm").setLevel(logging.INFO)
 
 app = FastAPI(title=settings.service_name, version="0.1.0")
 executor = ThreadPoolExecutor(max_workers=4)

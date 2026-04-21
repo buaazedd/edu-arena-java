@@ -7,6 +7,8 @@ from datetime import datetime
 from time import perf_counter
 from typing import Any, Dict, List, TypedDict
 
+import logging
+
 from langgraph.graph import END, START, StateGraph
 
 from app.config import settings
@@ -22,6 +24,7 @@ from app.retrieval import RetrievalService
 
 
 DIMENSIONS = ["theme", "imagination", "logic", "language", "writing"]
+logger = logging.getLogger(__name__)
 
 
 class ReviewState(TypedDict, total=False):
@@ -56,8 +59,17 @@ def _build_dimension_query(req: ReviewJobRequest) -> str:
 
 def _preprocess(state: ReviewState) -> ReviewState:
     req = state["request"]
+    logger.info(
+        "[preprocess] start battleId=%s essayTitleLen=%s essayTextLen=%s modelA=%s modelB=%s",
+        req.battleId,
+        len(req.taskMeta.essayTitle or ""),
+        len(req.input.essayText or ""),
+        req.outputs["modelA"].modelId,
+        req.outputs["modelB"].modelId,
+    )
     rubric_ctx = retrieval.get_rubric_context(req.rubricConfig.dimensions, req.rubricConfig.version)
     state["rubric_context"] = rubric_ctx
+    logger.info("[preprocess] rubric hits=%s judgePanel=%s", len(rubric_ctx), _judge_models())
     _mark_node(
         state,
         "preprocess",
@@ -69,7 +81,7 @@ def _preprocess(state: ReviewState) -> ReviewState:
     return state
 
 
-def _dimension_fallback(dimension: str, model_id: str) -> dict:
+def _dimension_fallback(_dimension: str, model_id: str) -> dict:
     return {
         "modelId": model_id,
         "winner": "tie",
@@ -90,6 +102,15 @@ def _run_panel_judge(dimension: str, state: ReviewState, model_id: str, ctx: Dic
 
     prompt = build_dimension_prompt(dimension, essay, output_a, output_b, ctx, model_id)
     llm = LLMService.create(model_id)
+    logger.info(
+        "[panel] start dimension=%s model=%s essayLen=%s leftLen=%s rightLen=%s ctxKeys=%s",
+        dimension,
+        model_id,
+        len(essay or ""),
+        len(output_a or ""),
+        len(output_b or ""),
+        list(ctx.keys()) if isinstance(ctx, dict) else type(ctx).__name__,
+    )
     try:
         result = llm.invoke_json(
             prompt,
@@ -97,11 +118,21 @@ def _run_panel_judge(dimension: str, state: ReviewState, model_id: str, ctx: Dic
             build_dimension_system_prompt(dimension, model_id),
         )
         result["modelId"] = model_id
+        logger.info(
+            "[panel] done dimension=%s model=%s winner=%s scoreA=%s scoreB=%s confidence=%s",
+            dimension,
+            model_id,
+            result.get("winner"),
+            result.get("scoreA"),
+            result.get("scoreB"),
+            result.get("confidence"),
+        )
         return result
     except Exception as ex:
         fb = _dimension_fallback(dimension, model_id)
         fb["reason"] = f"{model_id} 评审异常回退: {ex}"
         fb["modelId"] = model_id
+        logger.exception("[panel] error dimension=%s model=%s", dimension, model_id)
         return fb
 
 
@@ -121,6 +152,16 @@ def _summarize_dimension(dimension: str, panel_results: List[dict]) -> dict:
         winner = "B"
 
     lead_result = max(panel_results, key=lambda item: float(item.get("confidence", 0.0))) if panel_results else {}
+    logger.info(
+        "[dimension] summary dimension=%s panelCount=%s consensus=%s winner=%s scoreA=%s scoreB=%s confidence=%s",
+        dimension,
+        len(panel_results),
+        dict(winner_votes),
+        winner,
+        score_a,
+        score_b,
+        confidence,
+    )
     return {
         "dimension": dimension,
         "winner": winner,
@@ -152,10 +193,13 @@ def _dimension_eval_parallel(state: ReviewState) -> ReviewState:
     req = state["request"]
     dims = req.rubricConfig.dimensions or DIMENSIONS
     query_text = _build_dimension_query(req)
+    logger.info("[dimension_eval] start battleId=%s dims=%s", req.battleId, dims)
     # Retrieval可能失败（向量库/embedding不可用等），此处做容错，避免整单失败
     try:
         dimension_context = {dimension: retrieval.get_dimension_context(dimension, query_text) for dimension in dims}
+        logger.info("[dimension_eval] retrieval ok dims=%s", list(dimension_context.keys()))
     except Exception as ex:
+        logger.exception("[dimension_eval] retrieval error battleId=%s", req.battleId)
         dimension_context = {dimension: {"error": str(ex)} for dimension in dims}
     state["dimension_context"] = dimension_context
 
@@ -164,6 +208,7 @@ def _dimension_eval_parallel(state: ReviewState) -> ReviewState:
             results = list(executor.map(lambda d: _run_dimension_one(d, state), dims))
         except Exception as ex:
             # 兜底：至少返回空结果，让aggregate走fallback
+            logger.exception("[dimension_eval] parallel error battleId=%s", req.battleId)
             _mark_node(state, "dimension_eval_parallel_error", {"error": str(ex)})
             results = []
     state["dimension_results"] = results
@@ -188,6 +233,7 @@ def _dimension_eval_parallel(state: ReviewState) -> ReviewState:
         }
         for r in results
     ]
+    logger.info("[dimension_eval] done battleId=%s resultCount=%s", req.battleId, len(results))
     _mark_node(
         state,
         "dimension_eval_parallel",
@@ -223,6 +269,7 @@ def _aggregate_fallback(results: List[dict]) -> dict:
 def _aggregate(state: ReviewState) -> ReviewState:
     results = state.get("dimension_results", [])
     aggregate_model = settings.aggregate_model or settings.llm_model
+    logger.info("[aggregate] start battleId=%s resultCount=%s model=%s", state["request"].battleId, len(results), aggregate_model)
     prompt = build_aggregate_prompt(
         results,
         [
@@ -236,14 +283,28 @@ def _aggregate(state: ReviewState) -> ReviewState:
         ],
     )
     llm = LLMService.create(aggregate_model)
-    final = llm.invoke_json(
-        prompt,
-        _aggregate_fallback(results),
-        build_aggregate_system_prompt(aggregate_model),
-    )
+    try:
+        final = llm.invoke_json(
+            prompt,
+            _aggregate_fallback(results),
+            build_aggregate_system_prompt(aggregate_model),
+        )
+    except Exception as ex:
+        logger.exception("[aggregate] llm error battleId=%s", state["request"].battleId)
+        final = _aggregate_fallback(results)
+        final["summary"] = f"aggregate fallback due to error: {ex}"
+
     final_confidence = float(final.get("confidence", 0.5))
     final.setdefault("needsHuman", final_confidence < settings.default_confidence_threshold)
     state["final"] = final
+    logger.info(
+        "[aggregate] done battleId=%s winner=%s confidence=%s needsHuman=%s summary=%s",
+        state["request"].battleId,
+        final.get("winner"),
+        final.get("confidence"),
+        final.get("needsHuman"),
+        final.get("summary"),
+    )
     _mark_node(state, "aggregate", {**final, "aggregateModel": aggregate_model})
     return state
 
@@ -270,6 +331,16 @@ def run_review(request: ReviewJobRequest) -> ReviewResult:
     job_id = f"rev_{request.battleId}_{uuid.uuid4().hex[:8]}"
     trace_id = f"trace_{uuid.uuid4().hex[:10]}"
 
+    logger.info(
+        "[run_review] start jobId=%s battleId=%s modelA=%s modelB=%s essayTitleLen=%s essayTextLen=%s",
+        job_id,
+        request.battleId,
+        request.outputs["modelA"].modelId,
+        request.outputs["modelB"].modelId,
+        len(request.taskMeta.essayTitle or ""),
+        len(request.input.essayText or ""),
+    )
+
     state: ReviewState = {
         "request": request,
         "job_id": job_id,
@@ -295,6 +366,17 @@ def run_review(request: ReviewJobRequest) -> ReviewResult:
         completionTokens=0,
         estimatedCny=0.0,
         latencyMs=latency_ms,
+    )
+
+    logger.info(
+        "[run_review] done jobId=%s battleId=%s winner=%s confidence=%s needsHuman=%s latencyMs=%s dims=%s",
+        job_id,
+        request.battleId,
+        final.get("winner"),
+        final.get("confidence"),
+        final.get("needsHuman"),
+        latency_ms,
+        len(dim_results),
     )
 
     return ReviewResult(
