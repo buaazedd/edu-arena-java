@@ -270,8 +270,8 @@ public class AiClient {
     }
 
     /**
-     * 构建批改Prompt(纯文本版本)
-     * 优化版：增强角色定义、细化评分标准、引导思维链
+     * 构建批改Prompt(纯文本版本 - 备用，图片模式下使用buildMessageContent)
+     * 优化版：增强角色定义、细化评分标准、引导思维链、适配无正文场景
      */
     public String buildPrompt(Task task) {
         StringBuilder prompt = new StringBuilder();
@@ -284,8 +284,12 @@ public class AiClient {
         // 2. 作文题目
         prompt.append("【作文题目】\n").append(task.getEssayTitle()).append("\n\n");
         
-        // 3. 学生作文
-        prompt.append("【学生作文】\n").append(task.getEssayContent() != null ? task.getEssayContent() : "").append("\n\n");
+        // 3. 学生作文（适配无正文场景）
+        if (task.getEssayContent() != null && !task.getEssayContent().isEmpty()) {
+            prompt.append("【学生作文】\n").append(task.getEssayContent()).append("\n\n");
+        } else {
+            prompt.append("【说明】学生作文以图片形式提供，请结合图片内容进行批改。\n\n");
+        }
         
         // 4. 批改要求（如有）
         if (task.getRequirements() != null && !task.getRequirements().isEmpty()) {
@@ -368,7 +372,7 @@ public class AiClient {
 
     /**
      * 构建多模态消息内容(支持文本+图片)
-     * 优化版：增强角色定义、细化评分标准、引导思维链
+     * 优化版：强化图片识别指引（手写体识别、段落分割），适配图片为主的输入模式
      * @param task 任务
      * @return 消息内容列表，包含文本和图片
      */
@@ -379,19 +383,23 @@ public class AiClient {
         StringBuilder textPrompt = new StringBuilder();
         
         // 1. 角色定义
-        textPrompt.append("你是北京市中考语文阅卷组专家成员，拥有15年初三作文批改经验。\n");
+        textPrompt.append("你是北京市中考语文和英语阅卷组专家成员，拥有15年初三作文批改经验。\n");
         textPrompt.append("你熟悉中考作文评分标准，擅长发现学生作文的亮点与不足，并能给出有针对性的修改建议。\n");
         textPrompt.append("批改风格：客观公正、细致耐心、鼓励为主、建议具体。\n\n");
         
         // 2. 作文题目
         textPrompt.append("【作文题目】\n").append(task.getEssayTitle()).append("\n\n");
         
-        // 3. 如果有图片，添加图片说明
+        // 3. 图片识别指引（强化版）
         boolean hasImages = task.getImageBase64List() != null && !task.getImageBase64List().isEmpty();
         if (hasImages) {
             textPrompt.append("【学生作文图片】\n");
-            textPrompt.append("以下是学生手写作文的").append(task.getImageBase64List().size());
-            textPrompt.append("张图片，请仔细辨认图片中的文字内容（注意识别手写体），然后进行批改。\n\n");
+            textPrompt.append("以下是学生手写作文的").append(task.getImageBase64List().size()).append("张图片。\n");
+            textPrompt.append("请按以下步骤处理图片：\n");
+            textPrompt.append("1. 仔细辨认图片中的手写文字内容，注意区分易混淆字（如：已/己、末/未、撤/撒等）\n");
+            textPrompt.append("2. 按图片顺序拼接完整作文内容，注意段落分割和上下文衔接\n");
+            textPrompt.append("3. 关注书写工整度、字迹清晰度、涂改情况等书写维度信息\n");
+            textPrompt.append("4. 如果图片模糊或部分文字无法辨认，请标注并基于可辨认内容进行评价\n\n");
         }
         
         // 4. 如果有文本内容

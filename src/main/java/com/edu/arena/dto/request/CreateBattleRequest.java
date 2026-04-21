@@ -29,7 +29,7 @@ public class CreateBattleRequest {
      * 年级
      */
     @Size(max = 20, message = "年级最多20字符")
-    private String gradeLevel = "高中";
+    private String gradeLevel = "初中";
 
     /**
      * 批改要求

@@ -683,43 +683,22 @@ body {
       <div class="card">
         <div class="card-body">
           <div class="row g-3">
-            <div class="col-md-8">
+            <div class="col-12">
               <label class="form-label">作文题目 <span class="text-danger">*</span></label>
               <input type="text" class="form-control" id="essayTitle"
                      placeholder="例：我的理想、论坚持的力量">
             </div>
-            <div class="col-md-4">
-              <label class="form-label">年级/学段</label>
-              <select class="form-select" id="gradeLevel">
-                <option value="小学">小学</option>
-                <option value="初中">初中</option>
-                <option value="高中" selected>高中</option>
-                <option value="大学">大学</option>
-              </select>
-            </div>
             <div class="col-12">
-              <label class="form-label">学生作文内容 <span class="text-danger">*</span></label>
-              <textarea class="form-control essay-textarea" id="essayContent"
-                        placeholder="请粘贴或输入学生作文内容（至少50字）..."></textarea>
-              <div class="d-flex justify-content-between mt-2">
-                <small class="text-muted">字数：<span id="wordCount">0</span></small>
-              </div>
-            </div>
-            <div class="col-12">
-              <label class="form-label">上传图片（可选）</label>
+              <label class="form-label">上传作文图片 <span class="text-danger">*</span></label>
               <div class="upload-area" id="uploadArea" onclick="document.getElementById('imageInput').click()">
                 <i class="fa fa-cloud-upload-alt" style="font-size:32px; color:var(--text-light);"></i>
-                <p class="mb-1">点击上传作文图片</p>
-                <small class="text-muted">支持 JPG、PNG、WEBP 格式，最多10张</small>
+                <p class="mb-1">点击上传学生手写作文图片</p>
+                <small class="text-muted">支持 JPG、PNG、WEBP 格式，最多10张，请确保图片清晰</small>
               </div>
               <input type="file" id="imageInput" accept="image/*" multiple style="display:none" onchange="handleImageUpload(this)">
               <div id="imagePreview" class="d-flex flex-wrap gap-2 mt-2"></div>
             </div>
-            <div class="col-12">
-              <label class="form-label">批改要求（可选）</label>
-              <input type="text" class="form-control" id="requirements"
-                     placeholder="例：重点关注语言表达和结构逻辑">
-            </div>
+
             <div class="col-12">
               <button class="btn-primary-custom" id="submitBtn" onclick="startBattle()">
                 <i class="fa fa-play me-2"></i>开始对战评测
@@ -728,18 +707,6 @@ body {
           </div>
         </div>
       </div>
-
-      <div class="card mt-3">
-        <div class="card-body">
-          <div class="card-title-sm">示例作文（点击快速填入）</div>
-          <div class="d-flex flex-wrap gap-2">
-            <button class="btn-outline-custom btn-sm" onclick="fillSample(0)">高中议论文</button>
-            <button class="btn-outline-custom btn-sm" onclick="fillSample(1)">初中记叙文</button>
-            <button class="btn-outline-custom btn-sm" onclick="fillSample(2)">小学看图写话</button>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <div id="generatingSection" style="display:none">
       <div class="card mb-3">
@@ -822,7 +789,7 @@ body {
           <div class="card-body">
             <h5 style="font-weight:700; margin-bottom:4px;">请针对每个维度，选择哪个模型的批改更好</h5>
             <p style="font-size:13px; color:var(--text-mid); margin-bottom:20px;">
-              参考老师给出的5个评测维度，逐一比较两个模型的表现。总冠军由多数维度获胜方决定。
+              参考5个评测维度逐一比较两个模型的表现，最后给出整体评价。<strong>最终胜负由「整体评价」决定</strong>。
             </p>
 
             <div class="dim-vote-table">
@@ -928,14 +895,33 @@ body {
                   <textarea class="dim-reason-input" id="reason_writing" placeholder="请简述选择理由..." rows="2"></textarea>
                 </div>
               </div>
+
+              <div class="dim-vote-row" data-dim="overall" style="background:linear-gradient(135deg, #eff6ff, #f0f9ff); border-top:2px solid var(--blue);">
+                <div class="dim-label-col">
+                  <div class="dim-name" style="color:var(--blue);">🏆 整体评价</div>
+                  <div class="dim-desc" style="font-weight:500;">综合以上维度，哪个模型的批改更好？（<strong>决定最终胜负</strong>）</div>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-a" onclick="setDim('overall','left')">A</button>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-tie" onclick="setDim('overall','tie')">=</button>
+                </div>
+                <div class="dim-choice-col">
+                  <button class="dim-btn dim-b" onclick="setDim('overall','right')">B</button>
+                </div>
+                <div class="dim-reason-col">
+                  <textarea class="dim-reason-input" id="reason_overall" placeholder="请简述整体评价理由..." rows="2"></textarea>
+                </div>
+              </div>
             </div>
 
             <div class="mt-3 mb-3" id="voteProgress" style="font-size:13px; color:var(--text-light);">
-              已完成 <strong id="votedCount">0</strong> / 5 个维度
+              已完成 <strong id="votedCount">0</strong> / 6 个维度
             </div>
 
             <button class="btn-primary-custom" id="confirmVoteBtn" onclick="submitVote()" disabled>
-              <i class="fa fa-paper-plane me-2"></i>确认投票（请先完成全部 5 个维度）
+              <i class="fa fa-paper-plane me-2"></i>确认投票（请先完成全部 6 个维度）
             </button>
           </div>
         </div>
@@ -1089,7 +1075,7 @@ initSidebar();
 
 let currentBattleId = null;
 let battleStartTime = null;
-let dimVotes = { theme: null, imagination: null, logic: null, language: null, writing: null };
+let dimVotes = { theme: null, imagination: null, logic: null, language: null, writing: null, overall: null };
 let uploadedImages = [];
 let uploadedBase64 = [];
 let currentEventSource = null;
@@ -1135,52 +1121,6 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
-}
-
-const samples = [
-  {
-    title: '论坚持的力量',
-    grade: '高中',
-    content: `人生的道路上，我们常常会遇到各种各样的困难和挑战。有人在困难面前选择了退缩，而有人则选择了坚持。我认为，坚持是一种强大的力量，它能够帮助我们克服一切困难，走向成功。
-
-古往今来，无数成功者都是凭借坚持不懈的精神才取得了辉煌的成就。司马迁在遭受宫刑之后，没有放弃，而是忍辱负重，最终完成了《史记》这部伟大的著作。爱迪生在发明电灯的过程中，经历了上千次的失败，但他从未放弃，最终成功地发明了电灯，为人类带来了光明。
-
-在我的学习生活中，我也深刻体会到了坚持的重要性。记得刚开始学习数学竞赛时，那些复杂的题目让我感到无比困难。但是我没有放弃，每天坚持练习，遇到不会的问题就请教老师和同学。渐渐地，我的数学成绩有了明显的提高。
-
-坚持不仅仅是一种行为，更是一种信念。当我们坚定地相信自己能够成功时，我们就有了坚持下去的动力。让我们在人生的道路上，始终保持坚持的精神，勇往直前，去追求自己的梦想吧！`
-  },
-  {
-    title: '那个温暖的冬天',
-    grade: '初中',
-    content: `去年冬天特别冷，北风呼呼地吹着，树叶都掉光了。每天上学的路上，我都把手缩在口袋里，走得飞快。
-
-那天早上，天空飘着小雪，我像往常一样走在上学的路上。突然，我看到路边坐着一位老奶奶，她穿着薄薄的衣服，看起来很冷。我走过去问她怎么了，她说她迷路了，找不到回家的路。
-
-我看了看时间，离上课还有半个小时。我决定帮助老奶奶找到回家的路。我拉着她的手，她的手冰凉冰凉的。我问她住在哪里，她说了一个地名，我知道那个地方，就带着她往那个方向走。
-
-走了大概十分钟，老奶奶认出了自己家附近的商店。她高兴地说："到了到了！"她的眼睛里闪着泪光，一直说谢谢。
-
-那天虽然天气很冷，但是我的心里暖暖的。帮助别人真的是一件很快乐的事情。`
-  },
-  {
-    title: '春天来了',
-    grade: '小学',
-    content: `春天来了，天气变暖和了。小草从地里钻出来了，绿绿的，软软的。花儿也开了，红的、黄的、紫的，好看极了。
-
-小鸟在树上唱歌，叽叽喳喳的，好像在说"春天来了，春天来了"。蝴蝶在花丛中飞来飞去，好像在跳舞。
-
-我和小伙伴们在公园里放风筝。风筝飞得好高好高，像一只小鸟在天上飞。我们跑啊跑啊，开心极了。
-
-春天真美啊！我喜欢春天。`
-  }
-];
-
-function fillSample(idx) {
-  const s = samples[idx];
-  document.getElementById('essayTitle').value = s.title;
-  document.getElementById('essayContent').value = s.content;
-  document.getElementById('gradeLevel').value = s.grade;
-  updateWordCount();
 }
 
 function handleImageUpload(input) {
@@ -1238,12 +1178,6 @@ function removeImage(idx) {
   }
 }
 
-document.getElementById('essayContent').addEventListener('input', updateWordCount);
-function updateWordCount() {
-  const text = document.getElementById('essayContent').value;
-  document.getElementById('wordCount').textContent = text.length;
-}
-
 function setStep(n) {
   for (let i = 1; i <= 3; i++) {
     const el = document.getElementById('step' + i);
@@ -1255,16 +1189,10 @@ function setStep(n) {
 
 async function startBattle() {
   const title = document.getElementById('essayTitle').value.trim();
-  const content = document.getElementById('essayContent').value.trim();
-  const grade = document.getElementById('gradeLevel').value;
-  const req = document.getElementById('requirements').value.trim();
 
   if (!title) { showToast('请输入作文题目', 'error'); return; }
-  if (!content && uploadedImages.length === 0) {
-    showToast('请输入作文内容或上传图片', 'error'); return;
-  }
-  if (content && content.length < 10) {
-    showToast('作文内容至少10字', 'error'); return;
+  if (uploadedImages.length === 0) {
+    showToast('请上传作文图片', 'error'); return;
   }
 
   document.getElementById('submitBtn').disabled = true;
@@ -1272,11 +1200,8 @@ async function startBattle() {
 
   try {
     const payload = {
-      essay_title: title,
-      grade_level: grade,
-      requirements: req
+      essay_title: title
     };
-    if (content) payload.essay_content = content;
     if (uploadedBase64.length > 0) payload.images = uploadedBase64;
 
     const res = await apiPost('/api/battle/create', payload);
@@ -1302,16 +1227,14 @@ async function startGeneration(battleId) {
     setStep(2);
 
     const title = document.getElementById('essayTitle').value.trim();
-    const grade = document.getElementById('gradeLevel').value;
-    const content = document.getElementById('essayContent').value.trim();
 
     const battleGradeEl = document.getElementById('battleGrade');
     const battleTitleEl = document.getElementById('battleTitle');
-    if (battleGradeEl) battleGradeEl.textContent = grade;
+    if (battleGradeEl) battleGradeEl.textContent = '';
     if (battleTitleEl) battleTitleEl.textContent = title;
 
     renderEssayContent('genEssayCard', 'genEssayContent', 'genEssayImages', {
-      essayContent: content,
+      essayContent: '',
       images: uploadedBase64
     });
 
@@ -1384,14 +1307,9 @@ function showBattleResults(data) {
     images: data.images
   });
 
-  if (data.model_left) {
-    document.getElementById('modelLeftReveal').innerHTML =
-      `<div class="model-reveal"><i class="fa fa-robot"></i> ${data.model_left.name} · ${data.model_left.company}</div>`;
-  }
-  if (data.model_right) {
-    document.getElementById('modelRightReveal').innerHTML =
-      `<div class="model-reveal"><i class="fa fa-robot"></i> ${data.model_right.name} · ${data.model_right.company}</div>`;
-  }
+  // 投票前不显示模型名称（匿名化），投票后由 showPostVote 揭晓
+  document.getElementById('modelLeftReveal').innerHTML = '';
+  document.getElementById('modelRightReveal').innerHTML = '';
   
   if (data.status === 'ready') {
     document.getElementById('voteSection').style.display = '';
@@ -1420,19 +1338,19 @@ function setDim(dim, choice) {
   document.getElementById('votedCount').textContent = count;
 
   const btn = document.getElementById('confirmVoteBtn');
-  if (count === 5) {
+  if (count === 6) {
     btn.disabled = false;
     btn.innerHTML = '<i class="fa fa-paper-plane me-2"></i>确认投票';
   } else {
     btn.disabled = true;
-    btn.innerHTML = `<i class="fa fa-paper-plane me-2"></i>确认投票（还剩 ${5 - count} 个维度）`;
+    btn.innerHTML = `<i class="fa fa-paper-plane me-2"></i>确认投票（还剩 ${6 - count} 个维度）`;
   }
 }
 
 async function submitVote() {
   const unfinished = Object.entries(dimVotes).find(([k,v]) => v === null);
   if (unfinished) {
-    const nameMap = {theme:'主旨',imagination:'想象',logic:'逻辑',language:'语言',writing:'书写'};
+    const nameMap = {theme:'主旨',imagination:'想象',logic:'逻辑',language:'语言',writing:'书写',overall:'整体评价'};
     showToast(`请完成「${nameMap[unfinished[0]]}」维度的投票`, 'error');
     return;
   }
@@ -1440,7 +1358,7 @@ async function submitVote() {
   const voteTime = (Date.now() - battleStartTime) / 1000;
   
   const dimReasons = {};
-  ['theme', 'imagination', 'logic', 'language', 'writing'].forEach(dim => {
+  ['theme', 'imagination', 'logic', 'language', 'writing', 'overall'].forEach(dim => {
     const el = document.getElementById(`reason_${dim}`);
     dimReasons[dim] = el ? el.value.trim() : '';
   });
@@ -1455,11 +1373,13 @@ async function submitVote() {
       dim_logic: dimVotes.logic,
       dim_language: dimVotes.language,
       dim_writing: dimVotes.writing,
+      dim_overall: dimVotes.overall,
       dim_theme_reason: dimReasons.theme,
       dim_imagination_reason: dimReasons.imagination,
       dim_logic_reason: dimReasons.logic,
       dim_language_reason: dimReasons.language,
       dim_writing_reason: dimReasons.writing,
+      dim_overall_reason: dimReasons.overall,
       vote_time: voteTime,
     };
     console.info('[battle] submitVote payload:', payload);
@@ -1563,7 +1483,7 @@ function formatNum(num) {
 function newBattle() {
   currentBattleId = null;
   battleStartTime = null;
-  dimVotes = { theme: null, imagination: null, logic: null, language: null, writing: null };
+  dimVotes = { theme: null, imagination: null, logic: null, language: null, writing: null, overall: null };
   uploadedImages = [];
   uploadedBase64 = [];
   streamingContentA = '';
@@ -1580,13 +1500,13 @@ function newBattle() {
   document.getElementById('submitBtn').disabled = false;
   document.getElementById('submitBtn').innerHTML = '<i class="fa fa-play me-2"></i>开始对战评测';
   document.getElementById('confirmVoteBtn').disabled = true;
-  document.getElementById('confirmVoteBtn').innerHTML = '<i class="fa fa-paper-plane me-2"></i>确认投票（请先完成全部 5 个维度）';
+  document.getElementById('confirmVoteBtn').innerHTML = '<i class="fa fa-paper-plane me-2"></i>确认投票（请先完成全部 6 个维度）';
   document.getElementById('votedCount').textContent = '0';
 
   document.querySelectorAll('.dim-btn').forEach(b => b.classList.remove('selected-a', 'selected-b', 'selected-tie'));
   document.querySelectorAll('.dim-vote-row').forEach(r => r.classList.remove('voted'));
   
-  ['theme', 'imagination', 'logic', 'language', 'writing'].forEach(dim => {
+  ['theme', 'imagination', 'logic', 'language', 'writing', 'overall'].forEach(dim => {
     const el = document.getElementById(`reason_${dim}`);
     if (el) el.value = '';
   });
@@ -1595,9 +1515,6 @@ function newBattle() {
   document.getElementById('modelLeftReveal').innerHTML = '';
   document.getElementById('modelRightReveal').innerHTML = '';
   document.getElementById('essayTitle').value = '';
-  document.getElementById('essayContent').value = '';
-  document.getElementById('requirements').value = '';
-  document.getElementById('wordCount').textContent = '0';
   document.getElementById('eloChangeText').textContent = '';
   document.getElementById('imagePreview').innerHTML = '';
   document.getElementById('uploadArea').style.display = '';

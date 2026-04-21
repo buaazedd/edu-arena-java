@@ -46,6 +46,13 @@ public class VoteRequest {
     private String dimWriting;
 
     /**
+     * 整体评价维度投票（决定最终胜负）
+     */
+    @NotBlank(message = "请完成整体评价维度投票")
+    @Pattern(regexp = "^(left|right|tie)$", message = "整体评价维度投票值无效")
+    private String dimOverall;
+
+    /**
      * 主旨维度评分理由
      */
     private String dimThemeReason;
@@ -69,6 +76,11 @@ public class VoteRequest {
      * 书写维度评分理由
      */
     private String dimWritingReason;
+
+    /**
+     * 整体评价维度评分理由
+     */
+    private String dimOverallReason;
 
     /**
      * 投票耗时(秒)

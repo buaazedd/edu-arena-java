@@ -57,6 +57,11 @@ public class Vote {
     private String dimWriting;
 
     /**
+     * 整体评价维度: A, B, tie（决定最终胜负）
+     */
+    private String dimOverall;
+
+    /**
      * 主旨维度评分理由
      */
     private String dimThemeReason;
@@ -80,6 +85,11 @@ public class Vote {
      * 书写维度评分理由
      */
     private String dimWritingReason;
+
+    /**
+     * 整体评价维度评分理由
+     */
+    private String dimOverallReason;
 
     /**
      * 投票耗时(秒)

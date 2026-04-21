@@ -115,17 +115,15 @@ public class BattleServiceImpl implements BattleService {
             throw new BusinessException("您今日的对战次数已达上限(" + DAILY_BATTLE_LIMIT + "次)，请明天再试");
         }
         
-        // 验证内容
-        if ((request.getEssayContent() == null || request.getEssayContent().isEmpty()) 
-                && (request.getImages() == null || request.getImages().isEmpty())) {
-            throw new BusinessException("请提供作文内容或上传图片");
+        // 验证内容：图片为主要输入方式，必须上传图片
+        if (request.getImages() == null || request.getImages().isEmpty()) {
+            throw new BusinessException("请上传作文图片");
         }
 
-        if (request.getEssayContent() != null && request.getEssayContent().trim().length() < 10) {
-            if (request.getImages() == null || request.getImages().isEmpty()) {
-                throw new BusinessException("内容至少10字");
-            }
-            log.info("纯图片作文模式: essayContent长度不足10，自动置空，依赖图片输入");
+        // 如果有文本内容但长度不足，自动置空（依赖图片输入）
+        if (request.getEssayContent() != null && !request.getEssayContent().trim().isEmpty()
+                && request.getEssayContent().trim().length() < 10) {
+            log.info("图片作文模式: essayContent长度不足10，自动置空，依赖图片输入");
             request.setEssayContent(null);
         }
 
@@ -428,8 +426,11 @@ public class BattleServiceImpl implements BattleService {
             if ("swapped".equals(battle.getDisplayOrder())) {
                 vo.setResponseLeft(battle.getResponseB());
                 vo.setResponseRight(battle.getResponseA());
-                vo.setModelLeft(createModelVO(modelB));
-                vo.setModelRight(createModelVO(modelA));
+                // 仅投票后才返回模型信息（匿名化：投票前隐藏模型名称）
+                if ("voted".equals(battle.getStatus())) {
+                    vo.setModelLeft(createModelVO(modelB));
+                    vo.setModelRight(createModelVO(modelA));
+                }
                 // winner也需要转换：A->right, B->left
                 if ("A".equals(battle.getWinner())) {
                     vo.setWinner("right");
@@ -441,8 +442,11 @@ public class BattleServiceImpl implements BattleService {
             } else {
                 vo.setResponseLeft(battle.getResponseA());
                 vo.setResponseRight(battle.getResponseB());
-                vo.setModelLeft(createModelVO(modelA));
-                vo.setModelRight(createModelVO(modelB));
+                // 仅投票后才返回模型信息（匿名化：投票前隐藏模型名称）
+                if ("voted".equals(battle.getStatus())) {
+                    vo.setModelLeft(createModelVO(modelA));
+                    vo.setModelRight(createModelVO(modelB));
+                }
                 // 正常顺序：A->left, B->right
                 if ("A".equals(battle.getWinner())) {
                     vo.setWinner("left");
@@ -487,11 +491,14 @@ public class BattleServiceImpl implements BattleService {
         String dimLogic = convertVote(request.getDimLogic(), battle.getDisplayOrder());
         String dimLanguage = convertVote(request.getDimLanguage(), battle.getDisplayOrder());
         String dimWriting = convertVote(request.getDimWriting(), battle.getDisplayOrder());
+        String dimOverall = convertVote(request.getDimOverall(), battle.getDisplayOrder());
 
-        // 计算总体获胜方
+        // 胜负判定：直接使用整体评价维度决定最终胜负
+        String winner = dimOverall;
+
+        // 子维度统计（仅作参考记录）
         int aWins = countWins(dimTheme, dimImagination, dimLogic, dimLanguage, dimWriting);
         int bWins = 5 - aWins - countTies(dimTheme, dimImagination, dimLogic, dimLanguage, dimWriting);
-        String winner = aWins > bWins ? "A" : (bWins > aWins ? "B" : "tie");
 
         // 计算ELO变化 - 使用悲观锁查询模型，防止并发更新
         Model modelA = modelMapper.selectById(battle.getModelAId());
@@ -513,11 +520,13 @@ public class BattleServiceImpl implements BattleService {
         vote.setDimLogic(dimLogic);
         vote.setDimLanguage(dimLanguage);
         vote.setDimWriting(dimWriting);
+        vote.setDimOverall(dimOverall);
         vote.setDimThemeReason(request.getDimThemeReason());
         vote.setDimImaginationReason(request.getDimImaginationReason());
         vote.setDimLogicReason(request.getDimLogicReason());
         vote.setDimLanguageReason(request.getDimLanguageReason());
         vote.setDimWritingReason(request.getDimWritingReason());
+        vote.setDimOverallReason(request.getDimOverallReason());
         vote.setVoteTime(request.getVoteTime());
         vote.setEloABefore(modelA.getEloScore());
         vote.setEloBBefore(modelB.getEloScore());

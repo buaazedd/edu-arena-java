@@ -678,9 +678,9 @@ async function showBattleDetail(idx) {
     document.getElementById('modalEssayContent').textContent = detail.essay_content || '-';
     document.getElementById('modalTime').textContent = b.created_at ? new Date(b.created_at).toLocaleString('zh-CN') : '-';
     
-    // Model names
-    const modelA = detail.model_left ? detail.model_left.name : (b.model_a || '模型 A');
-    const modelB = detail.model_right ? detail.model_right.name : (b.model_b || '模型 B');
+    // Model names - 仅在已投票时显示真实模型名（匿名化）
+    const modelA = detail.model_left ? detail.model_left.name : '模型 A（投票后揭晓）';
+    const modelB = detail.model_right ? detail.model_right.name : '模型 B（投票后揭晓）';
     document.getElementById('modalModelA').textContent = modelA;
     document.getElementById('modalModelB').textContent = modelB;
     
