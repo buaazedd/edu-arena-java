@@ -707,6 +707,7 @@ body {
           </div>
         </div>
       </div>
+    </div><!-- end essaySection -->
 
     <div id="generatingSection" style="display:none">
       <div class="card mb-3">
@@ -1294,7 +1295,8 @@ function showBattleResults(data) {
   document.getElementById('generatingSection').style.display = 'none';
   document.getElementById('essaySection').style.display = 'none';
   document.getElementById('battleSection').style.display = '';
-  setStep(3);
+  // status=ready 时处于"查看批改"阶段(step2)，status=voted 时处于"投票评价"阶段(step3)
+  setStep(data.status === 'voted' ? 3 : 2);
   
   document.getElementById('battleTitle').textContent = data.essay_title;
   document.getElementById('battleGrade').textContent = data.grade_level;
@@ -1385,6 +1387,20 @@ async function submitVote() {
     console.info('[battle] submitVote payload:', payload);
     const res = await apiPost(`/api/battle/${currentBattleId}/vote`, payload);
 
+    // 投票成功后重新获取对战详情(status=voted 时后端会返回模型信息)
+    try {
+      const battleRes = await apiGet(`/api/battle/${currentBattleId}`);
+      if (battleRes.data) {
+        window.currentBattleData = battleRes.data;
+        // 更新批改内容显示（此时可能有 winner 信息）
+        document.getElementById('responseLeft').innerHTML = renderMarkdown(battleRes.data.response_left || '');
+        document.getElementById('responseRight').innerHTML = renderMarkdown(battleRes.data.response_right || '');
+      }
+    } catch(battleErr) {
+      console.warn('[battle] 重新获取对战详情失败:', battleErr);
+    }
+
+    setStep(3);
     showPostVote(res.data);
     showToast('投票成功！', 'success');
   } catch(e) {
@@ -1399,12 +1415,9 @@ function showPostVote(voteRes) {
   document.getElementById('postVoteSection').style.display = '';
 
   const battle = window.currentBattleData || null;
-  const leftSlot = voteRes ? (voteRes.leftModelSlot ?? voteRes.left_model_slot) : '';
-  const rightSlot = voteRes ? (voteRes.rightModelSlot ?? voteRes.right_model_slot) : '';
-  const eloAAfter = voteRes ? (voteRes.eloAAfter ?? voteRes.elo_a_after ?? voteRes.elo_aafter ?? voteRes.eloaAfter) : undefined;
-  const eloBAfter = voteRes ? (voteRes.eloBAfter ?? voteRes.elo_b_after ?? voteRes.elo_bafter ?? voteRes.elobAfter) : undefined;
-  const leftEloAfter = leftSlot === 'A' ? eloAAfter : leftSlot === 'B' ? eloBAfter : undefined;
-  const rightEloAfter = rightSlot === 'A' ? eloAAfter : rightSlot === 'B' ? eloBAfter : undefined;
+
+  // — 模型揭晓 —
+  // 优先从 battle（已刷新的 BattleVO，status=voted 时后端会返回模型信息）获取
   if (battle && battle.model_left) {
     const m = battle.model_left;
     const tags = [];
@@ -1414,10 +1427,15 @@ function showPostVote(voteRes) {
     if (m.features && m.features.includes('tool')) {
       tags.push('<span class="model-tag-tool">工具</span>');
     }
+    // 尝试从 VoteResultVO 获取 ELO，否则用模型自身的 elo_score
+    const leftSlot = voteRes ? (voteRes.left_model_slot ?? voteRes.leftModelSlot) : '';
+    const eloAAfter = voteRes ? (voteRes.elo_a_after ?? voteRes.eloAAfter) : undefined;
+    const eloBAfter = voteRes ? (voteRes.elo_b_after ?? voteRes.eloBAfter) : undefined;
+    const leftElo = leftSlot === 'A' ? eloAAfter : leftSlot === 'B' ? eloBAfter : undefined;
     document.getElementById('modelLeftReveal').innerHTML =
       `<div class="model-reveal model-reveal-detail">
         <div class="model-reveal-main"><i class="fa fa-robot"></i> <strong>${m.name}</strong> <span class="model-company">${m.company || ''}</span></div>
-        <div class="model-reveal-meta"><span>Elo: ${leftEloAfter ?? m.elo_score ?? 1500}</span>${m.context_length ? '<span>上下文: ' + formatNum(m.context_length) + '</span>' : ''}<div class="model-tags">${tags.join('')}</div></div>
+        <div class="model-reveal-meta"><span>Elo: ${leftElo ?? m.elo_score ?? 1500}</span>${m.context_length ? '<span>上下文: ' + formatNum(m.context_length) + '</span>' : ''}<div class="model-tags">${tags.join('')}</div></div>
       </div>`;
   }
   if (battle && battle.model_right) {
@@ -1429,47 +1447,68 @@ function showPostVote(voteRes) {
     if (m.features && m.features.includes('tool')) {
       tags.push('<span class="model-tag-tool">工具</span>');
     }
+    const rightSlot = voteRes ? (voteRes.right_model_slot ?? voteRes.rightModelSlot) : '';
+    const eloAAfter2 = voteRes ? (voteRes.elo_a_after ?? voteRes.eloAAfter) : undefined;
+    const eloBAfter2 = voteRes ? (voteRes.elo_b_after ?? voteRes.eloBAfter) : undefined;
+    const rightElo = rightSlot === 'A' ? eloAAfter2 : rightSlot === 'B' ? eloBAfter2 : undefined;
     document.getElementById('modelRightReveal').innerHTML =
       `<div class="model-reveal model-reveal-detail">
         <div class="model-reveal-main"><i class="fa fa-robot"></i> <strong>${m.name}</strong> <span class="model-company">${m.company || ''}</span></div>
-        <div class="model-reveal-meta"><span>Elo: ${rightEloAfter ?? m.elo_score ?? 1500}</span>${m.context_length ? '<span>上下文: ' + formatNum(m.context_length) + '</span>' : ''}<div class="model-tags">${tags.join('')}</div></div>
+        <div class="model-reveal-meta"><span>Elo: ${rightElo ?? m.elo_score ?? 1500}</span>${m.context_length ? '<span>上下文: ' + formatNum(m.context_length) + '</span>' : ''}<div class="model-tags">${tags.join('')}</div></div>
       </div>`;
   }
 
+  // — ELO 变化摘要 —
   if (voteRes) {
-    const aWins = voteRes.aWins ?? voteRes.a_wins ?? voteRes.awins ?? 0;
-    const bWins = voteRes.bWins ?? voteRes.b_wins ?? voteRes.bwins ?? 0;
-    const overallWinner = voteRes.overallWinner ?? voteRes.overall_winner ?? '';
+    const aWins = voteRes.a_wins ?? voteRes.aWins ?? 0;
+    const bWins = voteRes.b_wins ?? voteRes.bWins ?? 0;
+    const overallWinner = voteRes.overall_winner ?? voteRes.overallWinner ?? '';
     let summary = '维度投票结果：A方赢 ' + aWins + ' 个维度，B方赢 ' + bWins + ' 个维度';
     if (overallWinner === 'tie') summary += '，总评：平局';
     else if (overallWinner === 'A') summary += '，总冠军：A方';
     else if (overallWinner === 'B') summary += '，总冠军：B方';
-    const eloABefore = voteRes.eloABefore ?? voteRes.elo_a_before ?? voteRes.elo_abefore ?? voteRes.eloaBefore;
-    const eloAAfter = voteRes.eloAAfter ?? voteRes.elo_a_after ?? voteRes.elo_aafter ?? voteRes.eloaAfter;
-    const eloBBefore = voteRes.eloBBefore ?? voteRes.elo_b_before ?? voteRes.elo_bbefore ?? voteRes.elobBefore;
-    const eloBAfter = voteRes.eloBAfter ?? voteRes.elo_b_after ?? voteRes.elo_bafter ?? voteRes.elobAfter;
-    const hasElo = eloABefore !== undefined && eloAAfter !== undefined && eloBBefore !== undefined && eloBAfter !== undefined;
+    const eloABefore = voteRes.elo_a_before ?? voteRes.eloABefore;
+    const eloAAfterVal = voteRes.elo_a_after ?? voteRes.eloAAfter;
+    const eloBBefore = voteRes.elo_b_before ?? voteRes.eloBBefore;
+    const eloBAfterVal = voteRes.elo_b_after ?? voteRes.eloBAfter;
+    const hasElo = eloABefore !== undefined && eloAAfterVal !== undefined && eloBBefore !== undefined && eloBAfterVal !== undefined;
     if (hasElo) {
-      summary += `｜ELO A: ${eloABefore}→${eloAAfter}, B: ${eloBBefore}→${eloBAfter}`;
+      summary += `｜ELO A: ${eloABefore}→${eloAAfterVal}, B: ${eloBBefore}→${eloBAfterVal}`;
     }
     document.getElementById('eloChangeText').textContent = summary;
   }
 
+  // — 胜负面板高亮 —
   const panelLeft = document.getElementById('panelLeft');
   const panelRight = document.getElementById('panelRight');
   panelLeft.classList.remove('winner', 'loser');
   panelRight.classList.remove('winner', 'loser');
   
-  // 统一逻辑：A 永远在左，B 永远在右
-  const overallWinner = voteRes ? (voteRes.overallWinner ?? voteRes.overall_winner) : '';
-  if (overallWinner) {
-    if (overallWinner === 'A') {
-      panelLeft.classList.add('winner');
-      panelRight.classList.add('loser');
-    } else if (overallWinner === 'B') {
-      panelLeft.classList.add('loser');
-      panelRight.classList.add('winner');
+  // 从 VoteResultVO 获取 winner（A/B/tie），或从 BattleVO 获取 winner（left/right/tie）
+  let winnerSide = '';
+  if (voteRes) {
+    const ow = voteRes.overall_winner ?? voteRes.overallWinner ?? '';
+    const ws = voteRes.winner_side ?? voteRes.winnerSide ?? '';
+    if (ws === 'left' || ws === 'right' || ws === 'tie') {
+      winnerSide = ws;
+    } else if (ow === 'A') {
+      winnerSide = 'left';
+    } else if (ow === 'B') {
+      winnerSide = 'right';
+    } else if (ow === 'tie') {
+      winnerSide = 'tie';
     }
+  }
+  // 如果 voteRes 没有 winner 信息（从历史加载），使用 battle.winner
+  if (!winnerSide && battle && battle.winner) {
+    winnerSide = battle.winner; // 已经是 left/right/tie
+  }
+  if (winnerSide === 'left') {
+    panelLeft.classList.add('winner');
+    panelRight.classList.add('loser');
+  } else if (winnerSide === 'right') {
+    panelLeft.classList.add('loser');
+    panelRight.classList.add('winner');
   }
 }
 

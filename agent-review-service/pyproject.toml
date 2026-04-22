@@ -1,0 +1,18 @@
+[project]
+name = "agent-review-service"
+version = "0.1.0"
+description = "Multi-Agent essay-grading review service + offline batch runner for edu-arena"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"

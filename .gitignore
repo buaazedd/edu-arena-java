@@ -1,33 +1,87 @@
-# 默认忽略所有文件
-*
+# ==========================================
+# edu-arena-java 项目 .gitignore
+# Java (Maven) + Python (agent-review-service)
+# ==========================================
 
-# 允许遍历目录（否则无法重新包含子文件）
-!*/
+# ---------- IDE / 编辑器 ----------
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
 
-# 保留当前忽略规则文件
-!.gitignore
+# ---------- Java / Maven ----------
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+hs_err_pid*
 
-# 保留根目录关键文件
-!pom.xml
-!requirements.txt
-!README.md
+# ---------- Python 通用 ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
 
-# 保留 Java 代码
-!src/
-!src/main/
-!src/main/java/
-!src/main/java/**
-!src/test/
-!src/test/java/
-!src/test/java/**
+# 虚拟环境
+.venv/
+venv/
+env/
+ENV/
 
-# 保留资源目录（按你的要求完整保留）
-!src/main/resources/
-!src/main/resources/**
+# 分发 / 构建
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
 
-# 保留数据文件
-!data/
-!data/**
+# 测试 / 覆盖率
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
 
-# 保留 Python 代码（任意目录）
-!**/*.py
+# 类型检查
+.mypy_cache/
+.pytype/
+
+# Ruff / lint 缓存
+.ruff_cache/
+
+# ---------- agent-review-service 专属 ----------
+
+# 环境变量（含密钥，只跟踪 .env.example）
+agent-review-service/.env
+
+# 作文原图（大二进制文件，不入库）
+agent-review-service/picture/
+
+# SQLite 任务状态库（运行时产物）
+agent-review-service/data/*.sqlite
+agent-review-service/data/*.db
+
+# 批量运行结果（运行时产物）
+agent-review-service/data/results*.jsonl
+
+# 日志目录
+agent-review-service/logs/
+
+# RAG 向量库（运行时产物）
+agent-review-service/data/chroma/
+agent-review-service/data/vectordb/
+
+# ---------- 其他 ----------
+*.bak
+*.tmp
+*.temp
+logs/

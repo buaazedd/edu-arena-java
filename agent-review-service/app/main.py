@@ -1,109 +1,108 @@
+"""FastAPI 应用入口。
+
+启动方式：
+    uvicorn app.main:app --host 0.0.0.0 --port 8100 --reload
+或：
+    python -m app.main
+"""
 from __future__ import annotations
 
-import logging
-import uuid
-from concurrent.futures import ThreadPoolExecutor
+import time
+from typing import Any, Dict
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-from app.config import settings
-from app.graph import compiled_graph, run_review
-from app.job_store import job_store
-from app.models import (
-    RagSearchHit,
-    RagSearchRequest,
-    RagUpsertRequest,
-    ReviewJobRequest,
-    ReviewJobResponse,
-    ReviewJobStatusResponse,
-    ReviewResult,
-    ReviewStatus,
-)
-from app.retrieval import RetrievalService
+from app.api import admin_router, review_router
+from app.common.exceptions import ReviewServiceError
+from app.common.logger import init_logger, logger
+from app.settings import get_settings
 
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
-logging.getLogger("app.graph").setLevel(logging.INFO)
-logging.getLogger("app.retrieval").setLevel(logging.INFO)
-logging.getLogger("app.llm").setLevel(logging.INFO)
+def create_app() -> FastAPI:
+    settings = get_settings()
+    init_logger(level=settings.log_level, log_dir=settings.log_dir)
 
-app = FastAPI(title=settings.service_name, version="0.1.0")
-executor = ThreadPoolExecutor(max_workers=4)
-retrieval = RetrievalService()
+    app = FastAPI(
+        title="agent-review-service",
+        description="Multi-Agent 作文批改评审服务（LangGraph + RAG + Skill）",
+        version="0.1.0",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
+    )
 
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-def _run_and_store(job_id: str, payload: ReviewJobRequest):
-    try:
-        result = run_review(payload)
-        result.jobId = job_id
-        job_store.mark_completed(result)
-    except Exception as ex:
-        job_store.mark_failed(job_id, str(ex))
+    # ---- 中间件：访问日志 ----
+    @app.middleware("http")
+    async def access_log(request: Request, call_next):
+        t0 = time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            elapsed = int((time.perf_counter() - t0) * 1000)
+            logger.exception(
+                f"[http] {request.method} {request.url.path} -> EXCEPTION cost={elapsed}ms"
+            )
+            raise
+        elapsed = int((time.perf_counter() - t0) * 1000)
+        logger.info(
+            f"[http] {request.method} {request.url.path} -> {response.status_code} cost={elapsed}ms"
+        )
+        return response
 
+    # ---- 全局异常处理 ----
+    @app.exception_handler(ReviewServiceError)
+    async def _on_service_error(_: Request, exc: ReviewServiceError) -> JSONResponse:
+        payload: Dict[str, Any] = {"code": exc.code, "message": exc.message, "data": None}
+        return JSONResponse(status_code=exc.code if 400 <= exc.code < 600 else 500, content=payload)
 
-@app.get("/health")
-def health():
-    return {"status": "ok", "service": settings.service_name}
+    @app.exception_handler(RequestValidationError)
+    async def _on_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={"code": 422, "message": "请求参数校验失败", "data": exc.errors()},
+        )
 
+    # ---- 路由 ----
+    app.include_router(review_router, prefix="/api")
+    app.include_router(admin_router, prefix="/api")
 
-@app.get("/graph/ascii")
-def graph_ascii():
-    # 便于快速可视化节点结构
-    return {"graph": compiled_graph.get_graph().draw_ascii()}
+    @app.get("/", tags=["meta"])
+    async def root() -> Dict[str, Any]:
+        return {
+            "service": "agent-review-service",
+            "version": "0.1.0",
+            "docs": "/docs",
+            "review_port": settings.review_port,
+        }
 
-
-@app.post("/rag/upsert")
-def rag_upsert(payload: RagUpsertRequest):
-    count = retrieval.upsert_documents(payload.index, [d.model_dump() for d in payload.documents])
-    return {"index": payload.index, "upserted": count}
-
-
-@app.post("/rag/search", response_model=list[RagSearchHit])
-def rag_search(payload: RagSearchRequest):
-    return retrieval.search(payload.index, payload.query, payload.topK, payload.where)
-
-
-@app.post("/review/jobs", response_model=ReviewJobResponse)
-def create_review_job(payload: ReviewJobRequest):
-    job_id = f"rev_{payload.battleId}_{uuid.uuid4().hex[:8]}"
-    job_store.create_job(job_id, payload)
-    executor.submit(_run_and_store, job_id, payload)
-    return ReviewJobResponse(jobId=job_id, battleId=payload.battleId, status=ReviewStatus.QUEUED)
-
-
-@app.get("/review/jobs/{job_id}", response_model=ReviewJobStatusResponse)
-def get_review_job_status(job_id: str):
-    status = job_store.get_status(job_id)
-    if status is None:
-        raise HTTPException(status_code=404, detail="job_not_found")
-
-    result = job_store.get_result(job_id)
-    battle_id = result.battleId if result else -1
-    error = job_store.get_error(job_id)
-
-    return ReviewJobStatusResponse(jobId=job_id, battleId=battle_id, status=status, error=error)
-
-
-@app.get("/review/jobs/{job_id}/result", response_model=ReviewResult)
-def get_review_job_result(job_id: str):
-    status = job_store.get_status(job_id)
-    if status is None:
-        raise HTTPException(status_code=404, detail="job_not_found")
-    if status != ReviewStatus.COMPLETED:
-        raise HTTPException(status_code=409, detail=f"job_not_completed:{status}")
-
-    result = job_store.get_result(job_id)
-    if not result:
-        raise HTTPException(status_code=500, detail="result_missing")
-    return result
+    logger.info(
+        f"[startup] agent-review-service ready on {settings.review_host}:{settings.review_port}"
+    )
+    return app
 
 
-@app.post("/review/run", response_model=ReviewResult)
-def run_review_sync(payload: ReviewJobRequest):
-    try:
-        return run_review(payload)
-    except Exception as ex:
-        raise HTTPException(status_code=500, detail=f"review_failed: {ex}")
+app = create_app()
+
+
+if __name__ == "__main__":
+    import uvicorn  # type: ignore
+
+    s = get_settings()
+    uvicorn.run(
+        "app.main:app",
+        host=s.review_host,
+        port=s.review_port,
+        reload=False,
+        log_level=s.log_level.lower(),
+    )

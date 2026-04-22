@@ -1,0 +1,3 @@
+{"item_id": "essay-001", "essay_title": "记一次难忘的秋游", "images": [{"kind": "local", "path": "./data/images/essay-001/page1.jpg"}], "essay_content": "上周五学校组织秋游，我们去了郊外公园...", "grade_level": "初中", "requirements": "按照六维度批改，重点关注主旨与逻辑", "metadata": {"source": "sample-v1"}}
+{"item_id": "essay-002", "essay_title": "我的理想", "images": [{"kind": "local", "path": "./data/images/essay-002/page1.jpg"}, {"kind": "local", "path": "./data/images/essay-002/page2.jpg"}], "grade_level": "初中", "metadata": {"source": "sample-v1"}}
+{"item_id": "essay-003", "essay_title": "春天的校园", "images": [{"kind": "local", "path": "./data/images/essay-003/page1.jpg"}], "grade_level": "小学", "requirements": "侧重想象与语言", "metadata": {"source": "sample-v1"}}

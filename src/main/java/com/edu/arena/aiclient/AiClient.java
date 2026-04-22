@@ -78,11 +78,11 @@ public class AiClient {
                 .dispatcher(dispatcher)
                 .build();
         
-        // 同步请求使用标准配置
+        // 同步请求：多模态(3张图片)批改场景可能需要较长时间，readTimeout 设为 120s
         this.syncHttpClient = new OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(60, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
+                .writeTimeout(60, TimeUnit.SECONDS)
                 .connectionPool(new ConnectionPool(5, 5, TimeUnit.MINUTES))
                 .build();
     }
@@ -655,6 +655,8 @@ public class AiClient {
                 errorMsg = "API 调用频率超限";
             } else if (code == 500 || code == 502 || code == 503) {
                 errorMsg = "API 服务暂时不可用";
+            } else if (code == 400 && body.contains("upstream_error")) {
+                errorMsg = "上游模型 " + modelId + " 返回错误(可能不支持当前请求格式)";
             } else {
                 errorMsg = "HTTP " + code;
             }
