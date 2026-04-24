@@ -21,9 +21,9 @@ class Settings(BaseSettings):
     # ===== LLM =====
     ai_api_key: str = Field(default="", description="AiHubMix / OpenAI 兼容 API Key")
     ai_base_url: str = Field(default="https://api.aihubmix.com/v1")
-    ai_review_model: str = Field(default="gpt-4o-mini", description="维度 Agent 使用模型")
-    ai_arbitrator_model: str = Field(default="gpt-4o", description="仲裁 Agent 使用模型")
-    ai_timeout: int = Field(default=60, ge=5, le=600)
+    ai_review_model: str = Field(default="gpt-5-mini", description="维度 Agent 使用模型（6 个并行，需快且便宜）")
+    ai_arbitrator_model: str = Field(default="gpt-5", description="仲裁 Agent 使用模型（综合裁决，需最强推理）")
+    ai_timeout: int = Field(default=90, ge=5, le=600)
     ai_max_retries: int = Field(default=3, ge=0, le=10)
 
     # ===== 对战平台 =====

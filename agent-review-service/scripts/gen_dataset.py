@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
 """从 resource/ 下的 txt 描述文件 + picture/ 下的图片，生成批量评审用的 JSONL 清单。
 
-txt 文件格式（每行一条）：
-    <图片文件名> <作文题目> <score1> <score2> <score3> <score4> <score5> <total> <评语>
+支持两种行格式（按行自动识别）：
 
-示例：
-    0001.jpg 读下面的材料... 8 6 8 8 3 33 这篇作文以...
+【格式 A：空格分隔，用于中文 label_cn.txt】
+    <图片文件名> <作文题目> <score1> <score2> <score3> <score4> <score5> <total> <评语>
+    示例：
+        0001.jpg 读下面的材料... 8 6 8 8 3 33 这篇作文以...
+
+【格式 B：分号分隔，用于英文 label_en.txt】
+    <图片文件名>;<作文题目>;<score1>;<score2>;<score3>;<score4>;<score5>;<total>;<评语>
+    示例：
+        0001.jpg;假如你是李华...;3;3;3;2;4;15;作文观点明确...
 
 其中 6 个数字为人工评分（theme, imagination, logic, language, writing, total），
-评语为人工批注（写入 metadata.human_comment）。
+评语为人工批注。**这些评分与评语仅用于定位作文题目的右边界，不会写入输出 JSON。**
+输出的 essay_title = 图片名与第一个评分数字之间的完整原文（含材料、提示、字数要求等）。
 
 用法：
     # 默认：resource/*.txt + picture/ → data/dataset.jsonl
@@ -50,17 +57,36 @@ _SCORE_PATTERN = re.compile(
     r"\s+"
 )
 
-# 维度名称（与 DimensionKey 对齐）
-_DIM_NAMES = ["theme", "imagination", "logic", "language", "writing", "total"]
-
 
 def _parse_line(line: str, picture_dir: Path, grade_level: str) -> dict | None:
-    """解析一行 txt，返回 DatasetItem 格式的 dict 或 None（解析失败时）。"""
-    line = line.strip()
+    """解析一行 txt，返回 DatasetItem 格式的 dict 或 None（解析失败时）。
+
+    自动识别两种格式（人工评分与评语在解析时直接丢弃，不写入 JSON）：
+      - 分号分隔（英文 label_en.txt）：9 段 = 文件名 + 题目 + 5 分 + 总分 + 评语
+      - 空格分隔（中文 label_cn.txt）：题目与评分之间用空格
+    """
+    line = line.strip().lstrip("\ufeff")  # 去 BOM
     if not line or line.startswith("#"):
         return None
 
-    # 1. 提取图片文件名（行首，如 "0001.jpg"）
+    # ── 格式 B：分号分隔（英文） ──
+    # 典型行以 ".jpg;" / ".jpeg;" / ".png;" 开头，且分号段数 ≥ 9
+    if ";" in line:
+        seg = line.split(";")
+        if len(seg) >= 9 and re.match(r".+\.(jpg|jpeg|png|webp|bmp)$", seg[0].strip(), re.I):
+            image_filename = seg[0].strip()
+            essay_title_raw = seg[1].strip()
+            scores_raw = [s.strip() for s in seg[2:8]]
+            # 校验评分段都是数字 → 确认命中格式 B（但分数本身丢弃）
+            if all(re.fullmatch(r"\d+(?:\.\d+)?", s) for s in scores_raw):
+                return _build_item(
+                    image_filename=image_filename,
+                    essay_title=essay_title_raw,
+                    picture_dir=picture_dir,
+                    grade_level=grade_level,
+                )
+
+    # ── 格式 A：空格分隔（中文） ──
     parts = line.split(None, 1)
     if len(parts) < 2:
         print(f"  ⚠️  跳过（无法拆分文件名与内容）: {line[:60]}...", file=sys.stderr)
@@ -69,37 +95,40 @@ def _parse_line(line: str, picture_dir: Path, grade_level: str) -> dict | None:
     image_filename = parts[0]
     rest = parts[1]
 
-    # 2. 用正则找评分位置，把 rest 切分为：题目 | 评分 | 评语
+    # 用正则定位评分起点，题目 = 评分之前的全部内容；评分与评语解析后直接丢弃
     m = _SCORE_PATTERN.search(rest)
     if not m:
         print(f"  ⚠️  跳过（未找到评分数字）: {image_filename}", file=sys.stderr)
         return None
 
     essay_title = rest[: m.start()].strip()
-    scores_raw = [m.group(i) for i in range(1, 7)]
-    comment = rest[m.end():].strip()
 
-    # 3. 解析评分
-    scores = {}
-    for name, val in zip(_DIM_NAMES, scores_raw):
-        try:
-            scores[name] = float(val) if "." in val else int(val)
-        except ValueError:
-            scores[name] = val
+    return _build_item(
+        image_filename=image_filename,
+        essay_title=essay_title,
+        picture_dir=picture_dir,
+        grade_level=grade_level,
+    )
 
-    # 4. 从文件名提取 item_id（去掉扩展名）
+
+def _build_item(
+    image_filename: str,
+    essay_title: str,
+    picture_dir: Path,
+    grade_level: str,
+) -> dict:
+    """把已解析出的原始字段拼装成一条 DatasetItem dict（不含人工评分/评语）。"""
+    # 从文件名提取 item_id（去掉扩展名）
     item_id = Path(image_filename).stem  # "0001.jpg" → "0001"
 
-    # 5. 确定图片路径（支持 picture_dir 下直接放文件，或按 item_id 子目录放）
+    # 确定图片路径（支持 picture_dir 下直接放文件，或按 item_id 子目录放）
     images = []
     direct_path = picture_dir / image_filename
     sub_dir = picture_dir / item_id
 
     if direct_path.exists():
-        # 图片直接在 picture/ 下
         images.append({"kind": "local", "path": str(direct_path)})
     elif sub_dir.is_dir():
-        # 图片在 picture/<item_id>/ 子目录下
         for img in sorted(sub_dir.iterdir()):
             if img.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp", ".bmp"):
                 images.append({"kind": "local", "path": str(img)})
@@ -108,66 +137,17 @@ def _parse_line(line: str, picture_dir: Path, grade_level: str) -> dict | None:
         images.append({"kind": "local", "path": str(direct_path)})
         print(f"  ⚠️  图片不存在（已生成占位路径）: {direct_path}", file=sys.stderr)
 
-    # 6. 截取作文题目（如果太长，取第一句话或前 50 字作为 title）
-    title = _extract_title(essay_title)
-
-    # 7. 组装 DatasetItem
+    # 组装 DatasetItem
+    # essay_title 保留「图片名与第一个评分数字之间」的完整原文（含材料、要求等）
+    # requirements 统一为 None；不再写入 human_scores / human_comment / metadata
     return {
         "item_id": f"essay-{item_id}",
-        "essay_title": title,
+        "essay_title": essay_title,
         "images": images,
         "essay_content": None,
         "grade_level": grade_level,
-        "requirements": essay_title if essay_title != title else None,
-        "metadata": {
-            "source": "txt-import",
-            "image_filename": image_filename,
-            "human_scores": scores,
-            "human_comment": comment if comment else None,
-        },
+        "requirements": None,
     }
-
-
-def _extract_title(raw_title: str) -> str:
-    """从作文题目文本中提取简短标题。
-
-    策略：
-    1. 如果包含书名号《》，取书名号内容
-    2. 如果包含引号中的标题关键词，取引号内容
-    3. 如果以"以"..."为题"模式，提取题目
-    4. 否则取前 50 字
-    """
-    # 尝试匹配 《xxx》
-    m = re.search(r"《(.+?)》", raw_title)
-    if m:
-        return m.group(1)
-
-    # 尝试匹配 "以"xxx"为题" 或 "以"xxx"为题"
-    m = re.search(r'[以][\s]*["\u201c](.+?)["\u201d][\s]*为题', raw_title)
-    if m:
-        return m.group(1)
-
-    # 尝试匹配 "请以"...为题" 变体
-    m = re.search(r'请以\s*"(.+?)"\s*为题', raw_title)
-    if m:
-        return m.group(1)
-
-    # 尝试匹配"原来，我也很______" 这类半命题
-    m = re.search(r'["\u201c](.+?(?:_{2,}|……).+?)["\u201d"]', raw_title)
-    if m:
-        return m.group(1)
-
-    # 尝试匹配引号内的短标题
-    for q_open, q_close in [('\u201c', '\u201d'), ('"', '"'), ('\u300a', '\u300b')]:
-        m = re.search(re.escape(q_open) + r'(.{2,30})' + re.escape(q_close), raw_title)
-        if m:
-            candidate = m.group(1)
-            # 排除过长的引文
-            if len(candidate) <= 20:
-                return candidate
-
-    # 兜底：取前 50 字
-    return raw_title[:50] + ("..." if len(raw_title) > 50 else "")
 
 
 def parse_txt_file(
@@ -182,7 +162,8 @@ def parse_txt_file(
             item = _parse_line(line, picture_dir, grade_level)
             if item is not None:
                 items.append(item)
-                print(f"  ✅  [{lineno}] {item['item_id']} → {item['essay_title']}")
+                preview = item["essay_title"][:40] + ("…" if len(item["essay_title"]) > 40 else "")
+                print(f"  ✅  [{lineno}] {item['item_id']} → {preview}")
     return items
 
 

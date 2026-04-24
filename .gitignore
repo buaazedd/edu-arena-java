@@ -84,4 +84,5 @@ agent-review-service/data/vectordb/
 *.bak
 *.tmp
 *.temp
+*.jpg
 logs/
