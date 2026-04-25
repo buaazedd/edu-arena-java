@@ -20,4 +20,13 @@ public class BattleHistoryVO {
     private String matchType;
     private LocalDateTime createdAt;
 
+    /** 投票人 id（原始值，SQL 直接返回；控制器脱敏后再决定是否暴露） */
+    private Long voterUserId;
+    /** 投票人 username（原始值，SQL 直接返回） */
+    private String voterUsername;
+    /** 投票人 displayName（原始值，SQL 直接返回） */
+    private String voterDisplayName;
+    /** 展示用：displayName 优先回退 username 或 "匿名"，由控制器按角色填充 */
+    private String voter;
+
 }

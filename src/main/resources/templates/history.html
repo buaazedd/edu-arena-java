@@ -444,12 +444,13 @@ body {
               <th>模型 A</th>
               <th>模型 B</th>
               <th>获胜方</th>
+              <th>投票人</th>
               <th>匹配方式</th>
               <th>时间</th>
             </tr>
           </thead>
           <tbody id="historyTable">
-            <tr><td colspan="8" class="text-center text-muted py-4">
+            <tr><td colspan="9" class="text-center text-muted py-4">
               <div class="loading-spinner mb-2"></div><br>加载中...
             </td></tr>
           </tbody>
@@ -481,6 +482,9 @@ body {
       <div class="battle-info-bar">
         <span class="badge badge-blue rounded-pill px-3 py-2" id="modalGrade">-</span>
         <span id="modalEssayTitle" style="font-weight:600;">-</span>
+        <span class="badge rounded-pill px-3 py-2" id="modalVoterChip" style="display:none; background:#eef2ff; color:#4338ca; font-weight:500;">
+          <i class="fa fa-user me-1"></i><span id="modalVoterName">-</span>
+        </span>
         <span class="text-muted" style="margin-left:auto;" id="modalTime">-</span>
       </div>
       
@@ -513,8 +517,13 @@ body {
       </div>
       
       <div class="mt-3" id="modalVoteInfo" style="display:none;">
-        <h6 style="font-weight:600; margin-bottom:8px;">🗳️ 投票详情</h6>
-        <div id="modalVoteDetails" style="display:grid; grid-template-columns: repeat(5, 1fr); gap:8px; text-align:center;"></div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 style="font-weight:600; margin:0;">🗳️ 投票详情</h6>
+          <span style="font-size:12px; color:var(--text-mid);">
+            投票人：<strong id="modalVoteVoter" style="color:var(--text-dark);">-</strong>
+          </span>
+        </div>
+        <div id="modalVoteDetails" style="display:grid; grid-template-columns: repeat(6, 1fr); gap:8px; text-align:center;"></div>
       </div>
     </div>
   </div>
@@ -630,7 +639,7 @@ async function loadHistory(page = 1) {
 
     const tbody = document.getElementById('historyTable');
     if (!records.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无对战记录</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">暂无对战记录</td></tr>';
       return;
     }
 
@@ -647,6 +656,11 @@ async function loadHistory(page = 1) {
 
       const time = b.created_at ? new Date(b.created_at).toLocaleString('zh-CN') : '-';
 
+      const voterName = b.voter || '-';
+      const voterStyle = voterName === '匿名'
+        ? 'color:var(--text-light); font-style:italic;'
+        : 'color:var(--text-mid);';
+
       return `<tr class="history-row" onclick="showBattleDetail(${idx})">
         <td class="text-muted">${b.id}</td>
         <td><strong>${b.essay_title}</strong></td>
@@ -654,6 +668,7 @@ async function loadHistory(page = 1) {
         <td>${b.model_a}</td>
         <td>${b.model_b}</td>
         <td style="${winnerStyle}">${b.winner}</td>
+        <td style="${voterStyle}">${voterName}</td>
         <td>${matchBadge}</td>
         <td class="text-muted" style="font-size:12px;">${time}</td>
       </tr>`;
@@ -723,19 +738,32 @@ async function showBattleDetail(idx) {
     // Vote details
     if (detail.vote) {
       document.getElementById('modalVoteInfo').style.display = '';
-      const dims = ['theme', 'imagination', 'logic', 'language', 'writing'];
-      const dimNames = { theme: '主旨', imagination: '想象', logic: '逻辑', language: '语言', writing: '书写' };
+      const voterName = detail.vote.voter || '-';
+      document.getElementById('modalVoteVoter').textContent = voterName;
+      // 同步顶部 chip
+      const chip = document.getElementById('modalVoterChip');
+      chip.style.display = '';
+      document.getElementById('modalVoterName').textContent = voterName;
+
+      const dims = ['theme', 'imagination', 'logic', 'language', 'writing', 'overall'];
+      const dimNames = {
+        theme: '主旨', imagination: '想象', logic: '逻辑',
+        language: '语言', writing: '书写', overall: '整体'
+      };
+      // 后端 BattleVoteVO 维度值为 A/B/tie（与 votes 表一致）
       document.getElementById('modalVoteDetails').innerHTML = dims.map(dim => {
         const v = detail.vote['dim_' + dim];
-        const winnerText = v === 'left' ? 'A' : v === 'right' ? 'B' : '=';
-        const color = v === 'left' ? '#6366f1' : v === 'right' ? '#f59e0b' : '#64748b';
-        return `<div style="padding:8px; background:#f8fafc; border-radius:8px;">
+        const winnerText = v === 'A' ? 'A' : v === 'B' ? 'B' : '=';
+        const color = v === 'A' ? '#6366f1' : v === 'B' ? '#f59e0b' : '#64748b';
+        const extraStyle = dim === 'overall' ? 'border:1px solid #c7d2fe;' : '';
+        return `<div style="padding:8px; background:#f8fafc; border-radius:8px; ${extraStyle}">
           <div style="font-size:12px; color:var(--text-light);">${dimNames[dim]}</div>
           <div style="font-size:16px; font-weight:700; color:${color};">${winnerText}</div>
         </div>`;
       }).join('');
     } else {
       document.getElementById('modalVoteInfo').style.display = 'none';
+      document.getElementById('modalVoterChip').style.display = 'none';
     }
     
   } catch(e) {
@@ -749,6 +777,7 @@ async function showBattleDetail(idx) {
     document.getElementById('modalResponseA').textContent = '-';
     document.getElementById('modalResponseB').textContent = '-';
     document.getElementById('modalVoteInfo').style.display = 'none';
+    document.getElementById('modalVoterChip').style.display = 'none';
   }
   
   document.getElementById('battleModal').classList.add('show');

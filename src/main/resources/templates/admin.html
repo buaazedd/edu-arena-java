@@ -493,6 +493,7 @@ body {
       <button class="admin-tab active" onclick="switchAdminTab('models')">模型管理</button>
       <button class="admin-tab" onclick="switchAdminTab('config')">系统配置</button>
       <button class="admin-tab" onclick="switchAdminTab('quality')">质量监控</button>
+      <button class="admin-tab" onclick="switchAdminTab('votes')">投票记录</button>
       <button class="admin-tab" onclick="switchAdminTab('export')">数据导出</button>
     </div>
 
@@ -565,6 +566,70 @@ body {
               <tr><td colspan="6" class="text-center text-muted py-3">加载中...</td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Votes Panel -->
+    <div class="admin-panel" id="panel-votes">
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+              <label class="form-label">投票人（用户名/显示名）</label>
+              <input class="form-control" id="voteKeyword" placeholder="模糊匹配，留空不过滤">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">对战 ID</label>
+              <input class="form-control" id="voteBattleId" type="number" placeholder="如 123">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">起始日期</label>
+              <input class="form-control" id="voteStartDate" type="date">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">截止日期</label>
+              <input class="form-control" id="voteEndDate" type="date">
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+              <button class="btn-primary-custom w-100" onclick="loadAdminVotes(1)">查询</button>
+              <button class="btn-outline-custom w-100" onclick="resetVoteFilters()">重置</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body p-0">
+          <table class="table table-custom mb-0">
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>对战</th>
+                <th>投票人</th>
+                <th>作文题目</th>
+                <th>模型 A</th>
+                <th>模型 B</th>
+                <th>获胜方</th>
+                <th>整体</th>
+                <th>耗时(s)</th>
+              </tr>
+            </thead>
+            <tbody id="votesTable">
+              <tr><td colspan="9" class="text-center text-muted py-3">点击"查询"加载</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="d-flex justify-content-between align-items-center mt-3">
+        <span class="text-muted" style="font-size:13px;" id="votesPageInfo"></span>
+        <div class="d-flex gap-2">
+          <button class="btn-outline-custom btn-sm" id="votesPrevBtn" onclick="loadAdminVotes(votesCurrentPage - 1)" disabled>
+            <i class="fa fa-chevron-left me-1"></i>上一页
+          </button>
+          <button class="btn-outline-custom btn-sm" id="votesNextBtn" onclick="loadAdminVotes(votesCurrentPage + 1)" disabled>
+            下一页<i class="fa fa-chevron-right ms-1"></i>
+          </button>
         </div>
       </div>
     </div>
@@ -682,6 +747,10 @@ function switchAdminTab(tab) {
   document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
   event.target.classList.add('active');
   document.getElementById('panel-' + tab).classList.add('active');
+  if (tab === 'votes' && !votesLoadedOnce) {
+    votesLoadedOnce = true;
+    loadAdminVotes(1);
+  }
 }
 
 async function loadAdminStats() {
@@ -925,6 +994,116 @@ async function loadQuality() {
       </tr>`;
     }).join('');
   } catch(e) {}
+}
+
+// ========== 投票记录 Tab ==========
+let votesCurrentPage = 1;
+let votesTotalPages = 1;
+let votesLoadedOnce = false;
+const VOTES_PAGE_SIZE = 20;
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatWinnerBadge(label) {
+  if (!label) return '<span class="text-muted">-</span>';
+  if (label === '平局' || label === 'tie') {
+    return '<span class="badge badge-amber rounded-pill">平局</span>';
+  }
+  return '<span class="badge badge-blue rounded-pill">' + escapeHtml(label) + '</span>';
+}
+
+function formatDimension(v) {
+  if (!v) return '<span class="text-muted">-</span>';
+  if (v === 'A') return '<span class="badge badge-blue rounded-pill">A</span>';
+  if (v === 'B') return '<span class="badge badge-green rounded-pill">B</span>';
+  if (v === 'tie') return '<span class="badge badge-amber rounded-pill">平</span>';
+  return escapeHtml(v);
+}
+
+async function loadAdminVotes(page) {
+  if (!page || page < 1) page = 1;
+  const params = new URLSearchParams();
+  params.append('page', page);
+  params.append('size', VOTES_PAGE_SIZE);
+  const kw = document.getElementById('voteKeyword').value.trim();
+  const bid = document.getElementById('voteBattleId').value.trim();
+  const sd = document.getElementById('voteStartDate').value;
+  const ed = document.getElementById('voteEndDate').value;
+  if (kw) params.append('keyword', kw);
+  if (bid) params.append('battleId', bid);
+  if (sd) params.append('startDate', sd);
+  if (ed) params.append('endDate', ed);
+
+  const tbody = document.getElementById('votesTable');
+  tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3">加载中...</td></tr>';
+
+  try {
+    const res = await apiGet('/api/admin/votes?' + params.toString());
+    const data = res.data || {};
+    const rows = data.records || [];
+    const total = data.total || 0;
+    const size = data.size || VOTES_PAGE_SIZE;
+    const current = data.current || page;
+    votesCurrentPage = current;
+    votesTotalPages = Math.max(1, Math.ceil(total / size));
+
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3">暂无记录</td></tr>';
+    } else {
+      tbody.innerHTML = rows.map(v => {
+        const voterName = v.voter || v.voter_display_name || v.voter_username || '-';
+        const voterSub = v.voter_username && v.voter_username !== voterName
+          ? '<div class="text-muted" style="font-size:11px;">@' + escapeHtml(v.voter_username) + '</div>'
+          : '';
+        const essay = v.essay_title ? escapeHtml(v.essay_title) : '<span class="text-muted">-</span>';
+        const duration = v.vote_time != null
+          ? (typeof v.vote_time === 'number' ? v.vote_time.toFixed(1) : v.vote_time)
+          : '-';
+        return `<tr>
+          <td style="font-size:12px; color:var(--text-light);">${escapeHtml(v.created_at || '-')}</td>
+          <td><a href="/history?battleId=${v.battle_id}" target="_blank" class="text-primary text-decoration-none">#${v.battle_id}</a></td>
+          <td>
+            <div>${escapeHtml(voterName)}</div>
+            ${voterSub}
+          </td>
+          <td style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(v.essay_title || '')}">${essay}</td>
+          <td>${escapeHtml(v.model_a || '-')}</td>
+          <td>${escapeHtml(v.model_b || '-')}</td>
+          <td>${formatWinnerBadge(v.winner_label)}</td>
+          <td>${formatDimension(v.dim_overall || v.winner)}</td>
+          <td style="font-size:12px;">${duration}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    const startIdx = total === 0 ? 0 : (current - 1) * size + 1;
+    const endIdx = Math.min(current * size, total);
+    document.getElementById('votesPageInfo').textContent =
+      total === 0 ? '无数据' : `共 ${total} 条 · 当前 ${startIdx}-${endIdx} · 第 ${current}/${votesTotalPages} 页`;
+    document.getElementById('votesPrevBtn').disabled = current <= 1;
+    document.getElementById('votesNextBtn').disabled = current >= votesTotalPages;
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3" style="color:var(--red);">加载失败：' + escapeHtml(e.error || '未知错误') + '</td></tr>';
+    document.getElementById('votesPageInfo').textContent = '';
+    document.getElementById('votesPrevBtn').disabled = true;
+    document.getElementById('votesNextBtn').disabled = true;
+  }
+}
+
+function resetVoteFilters() {
+  document.getElementById('voteKeyword').value = '';
+  document.getElementById('voteBattleId').value = '';
+  document.getElementById('voteStartDate').value = '';
+  document.getElementById('voteEndDate').value = '';
+  loadAdminVotes(1);
 }
 
 // Init - 并行加载所有数据，提升页面响应速度

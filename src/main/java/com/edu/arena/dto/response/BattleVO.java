@@ -49,4 +49,10 @@ public class BattleVO {
      */
     private ModelSimpleVO modelRight;
 
+    /**
+     * 投票明细（已投票对战才有）。
+     * service 层注入含真实 voter 信息的 VO，controller 层脱敏后下发。
+     */
+    private BattleVoteVO vote;
+
 }

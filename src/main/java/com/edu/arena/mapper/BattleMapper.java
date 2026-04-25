@@ -17,19 +17,20 @@ import java.util.List;
 @Mapper
 public interface BattleMapper extends BaseMapper<Battle> {
 
-    @Select("SELECT * FROM (" +
-            "SELECT b.id, t.essay_title as essayTitle, t.grade_level as gradeLevel, " +
-            "ma.name as modelA, mb.name as modelB, " +
-            "CASE WHEN MAX(v.winner) = 'A' THEN ma.name WHEN MAX(v.winner) = 'B' THEN mb.name ELSE '平局' END as winner, " +
-            "b.match_type as matchType, b.created_at as createdAt " +
+    @Select("SELECT b.id, t.essay_title AS essayTitle, t.grade_level AS gradeLevel, " +
+            "ma.name AS modelA, mb.name AS modelB, " +
+            "CASE WHEN v.winner = 'A' THEN ma.name WHEN v.winner = 'B' THEN mb.name ELSE '平局' END AS winner, " +
+            "b.match_type AS matchType, b.created_at AS createdAt, " +
+            "v.user_id AS voterUserId, u.username AS voterUsername, u.display_name AS voterDisplayName " +
             "FROM battles b " +
             "JOIN tasks t ON b.task_id = t.id " +
             "JOIN models ma ON b.model_a_id = ma.id " +
             "JOIN models mb ON b.model_b_id = mb.id " +
-            "LEFT JOIN votes v ON b.id = v.battle_id " +
+            // 子查询取最早一条投票记录作为该对战的「主投票人」，保证 id/username/display_name 三字段来自同一行
+            "LEFT JOIN votes v ON v.id = (SELECT MIN(v2.id) FROM votes v2 WHERE v2.battle_id = b.id) " +
+            "LEFT JOIN users u ON u.id = v.user_id " +
             "WHERE b.status = 'voted' " +
-            "GROUP BY b.id, t.essay_title, t.grade_level, ma.name, mb.name, b.match_type, b.created_at " +
-            ") AS history ORDER BY createdAt DESC")
+            "ORDER BY b.created_at DESC")
     IPage<BattleHistoryVO> selectHistoryPage(Page<BattleHistoryVO> page);
 
     /**

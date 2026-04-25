@@ -36,4 +36,11 @@ public class VoteResultVO {
     @JsonProperty("elo_b_after")
     private BigDecimal eloBAfter;
 
+    /** 当前投票人 id（即本次操作者） */
+    @JsonProperty("voter_user_id")
+    private Long voterUserId;
+    /** 当前投票人展示名（displayName 优先，回退 username） */
+    @JsonProperty("voter")
+    private String voter;
+
 }

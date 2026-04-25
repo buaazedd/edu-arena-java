@@ -21,6 +21,7 @@ import com.edu.arena.dto.request.CreateBattleRequest;
 import com.edu.arena.dto.request.VoteRequest;
 import com.edu.arena.dto.response.BattleHistoryVO;
 import com.edu.arena.dto.response.BattleVO;
+import com.edu.arena.dto.response.BattleVoteVO;
 import com.edu.arena.dto.response.MatchResultVO;
 import com.edu.arena.dto.response.ModelSimpleVO;
 import com.edu.arena.dto.response.VoteResultVO;
@@ -28,11 +29,13 @@ import com.edu.arena.entity.Battle;
 import com.edu.arena.entity.EloHistory;
 import com.edu.arena.entity.Model;
 import com.edu.arena.entity.Task;
+import com.edu.arena.entity.User;
 import com.edu.arena.entity.Vote;
 import com.edu.arena.mapper.BattleMapper;
 import com.edu.arena.mapper.EloHistoryMapper;
 import com.edu.arena.mapper.ModelMapper;
 import com.edu.arena.mapper.TaskMapper;
+import com.edu.arena.mapper.UserMapper;
 import com.edu.arena.mapper.VoteMapper;
 import com.edu.arena.service.BattleService;
 import com.edu.arena.service.EloMatchService;
@@ -60,6 +63,7 @@ public class BattleServiceImpl implements BattleService {
     private final ModelMapper modelMapper;
     private final VoteMapper voteMapper;
     private final EloHistoryMapper eloHistoryMapper;
+    private final UserMapper userMapper;
     private final AiClient aiClient;
     private final LeaderboardService leaderboardService;
     private final CacheService cacheService;
@@ -458,7 +462,71 @@ public class BattleServiceImpl implements BattleService {
             }
         }
 
+        if ("voted".equals(battle.getStatus())) {
+            vo.setVote(loadBattleVote(battle.getId()));
+        }
+
         return vo;
+    }
+
+    /**
+     * 按 battleId 查询投票记录 + 投票人，组装 {@link BattleVoteVO}。
+     *
+     * <p>voter 字段不在这里脱敏（留给 controller 按角色处理），只写原始字段，
+     * 同时用 displayName 回退 username 填到 {@code voter} 作为"管理员视角"默认值。</p>
+     */
+    private BattleVoteVO loadBattleVote(Long battleId) {
+        try {
+            LambdaQueryWrapper<Vote> wrapper = new LambdaQueryWrapper<Vote>()
+                    .eq(Vote::getBattleId, battleId)
+                    .orderByAsc(Vote::getId)
+                    .last("LIMIT 1");
+            Vote vote = voteMapper.selectOne(wrapper);
+            if (vote == null) {
+                return null;
+            }
+            BattleVoteVO voteVO = new BattleVoteVO();
+            voteVO.setVoteId(vote.getId());
+            voteVO.setWinner(vote.getWinner());
+            voteVO.setDimTheme(vote.getDimTheme());
+            voteVO.setDimImagination(vote.getDimImagination());
+            voteVO.setDimLogic(vote.getDimLogic());
+            voteVO.setDimLanguage(vote.getDimLanguage());
+            voteVO.setDimWriting(vote.getDimWriting());
+            voteVO.setDimOverall(vote.getDimOverall());
+            voteVO.setDimThemeReason(vote.getDimThemeReason());
+            voteVO.setDimImaginationReason(vote.getDimImaginationReason());
+            voteVO.setDimLogicReason(vote.getDimLogicReason());
+            voteVO.setDimLanguageReason(vote.getDimLanguageReason());
+            voteVO.setDimWritingReason(vote.getDimWritingReason());
+            voteVO.setDimOverallReason(vote.getDimOverallReason());
+            voteVO.setCreatedAt(vote.getCreatedAt());
+
+            Long voterUserId = vote.getUserId();
+            voteVO.setVoterUserId(voterUserId);
+            if (voterUserId != null) {
+                User voter = userMapper.selectById(voterUserId);
+                if (voter != null) {
+                    voteVO.setVoterUsername(voter.getUsername());
+                    voteVO.setVoterDisplayName(voter.getDisplayName());
+                    voteVO.setVoter(preferDisplayName(voter.getDisplayName(), voter.getUsername()));
+                }
+            }
+            return voteVO;
+        } catch (Exception e) {
+            log.warn("加载对战投票人信息失败: battleId={}", battleId, e);
+            return null;
+        }
+    }
+
+    /**
+     * displayName 优先，空则回退 username。
+     */
+    public static String preferDisplayName(String displayName, String username) {
+        if (displayName != null && !displayName.isBlank()) {
+            return displayName;
+        }
+        return username;
     }
 
     private ModelSimpleVO createModelVO(Model model) {
@@ -594,6 +662,17 @@ public class BattleServiceImpl implements BattleService {
         result.setEloAAfter(vote.getEloAAfter());
         result.setEloBBefore(vote.getEloBBefore());
         result.setEloBAfter(vote.getEloBAfter());
+
+        // 当前投票人（用于前端立即展示"本次投票由 XX 完成"）
+        result.setVoterUserId(userId);
+        try {
+            User voter = userMapper.selectById(userId);
+            if (voter != null) {
+                result.setVoter(preferDisplayName(voter.getDisplayName(), voter.getUsername()));
+            }
+        } catch (Exception e) {
+            log.warn("填充投票人展示信息失败: userId={}", userId, e);
+        }
 
         return result;
     }
