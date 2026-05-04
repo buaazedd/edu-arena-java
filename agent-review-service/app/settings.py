@@ -28,8 +28,8 @@ class Settings(BaseSettings):
 
     # ===== 对战平台 =====
     arena_base_url: str = Field(default="http://localhost:5001")
-    arena_username: str = Field(default="admin")
-    arena_password: str = Field(default="admin123")
+    arena_username: str = Field(default="爱吃饭的汪汪")
+    arena_password: str = Field(default="wlzwlzwlz")
 
     # ===== 本服务 =====
     review_host: str = Field(default="0.0.0.0")

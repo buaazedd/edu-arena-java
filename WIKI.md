@@ -1,6 +1,7 @@
 # 📚 edu-arena-java 项目 Wiki
 
-> **最后更新**: 2026-04-25 (v2.14.1: 修复 v2.14 两处隐性缺陷 —— ① `BattleMapper.selectHistoryPage` 原用 `MAX(v.user_id)+MAX(u.username)+MAX(u.display_name)` 聚合，一场对战有多条投票时三字段可能来自不同行造成"身份串号"，改为子查询 `MIN(v2.id)` 定位主投票行后 LEFT JOIN；② `BattleController.getBattle` 脱敏前对 `BattleVoteVO` 做浅拷贝，避免修改缓存命中持有的 VO 对象跨角色/跨请求污染)  
+> **最后更新**: 2026-05-04 (v2.15: 新增泰安市高二期末作文批量评审数据集支持 —— ① 新增脚本 `agent-review-service/scripts/gen_dataset_taian.py`，针对"姓名-学号-正面/背面.jpg"命名规范按学号聚合生成 `DatasetItem`，兼容"仅正面 / 仅背面 / 正背齐全"；② 固化英雄与选择作文题到脚本 `ESSAY_TITLE` 常量；③ 输出 `data/dataset_taian_hero.jsonl`（11559 条）；④ 新增使用说明 `agent-review-service/泰安作文使用说明.md`，覆盖清单生成 / 一键批量 / 分步手动 / 断点续跑 / 失败重跑 / 结果统计全流程)  
+> **v2.14.1** (2026-04-25): 修复 v2.14 两处隐性缺陷 —— ① `BattleMapper.selectHistoryPage` 原用 `MAX(v.user_id)+MAX(u.username)+MAX(u.display_name)` 聚合，一场对战有多条投票时三字段可能来自不同行造成"身份串号"，改为子查询 `MIN(v2.id)` 定位主投票行后 LEFT JOIN；② `BattleController.getBattle` 脱敏前对 `BattleVoteVO` 做浅拷贝，避免修改缓存命中持有的 VO 对象跨角色/跨请求污染  
 > **v2.14** (2026-04-25): 投票人追溯 —— 对战历史列表新增「投票人」列、详情弹窗修复并展示投票人，后台管理新增「投票记录」Tab；身份口径统一 `displayName→username`，服务端按角色脱敏（admin 全量；teacher 仅自己真名，其他显示「匿名」）；新增 `AdminVoteController` + `VoteQueryService` + `BattleVoteVO`/`AdminVoteItemVO`/`AdminVoteQuery`；`BattleMapper.selectHistoryPage` 与 `VoteMapper.selectVotePage` 相应扩展  
 > **v2.13** (2026-04-25): `agent-review-service/README.md` 全面重写——新增「多智能体架构」专章详解 preprocess / dispatch / dimension_agent / arbitrator / VoteMapper 各节点职责与归约机制；拆分并扩充「启动说明」为服务启动（3 种方式）+ 批量数据准备 + 跑批（一键/手动）四段式端到端指南；修订默认 LLM 模型为 `gpt-5-mini`/`gpt-5`，补全环境变量表  
 > **用途**: 供大模型快速了解项目全貌，辅助代码生成与修改  
@@ -118,11 +119,12 @@ edu-arena-java/
 │   │   ├── task_store.py                            # SqliteTaskStore 任务状态
 │   │   ├── vote_builder.py                          # VotePayload → ArenaVoteRequest
 │   │   └── models.py                                # BatchJob / StageStatus
-│   ├── scripts/                                     # init_rag.py / gen_dataset.py / run_batch.sh
+│   ├── scripts/                                     # init_rag.py / gen_dataset.py / gen_dataset_taian.py / run_batch.sh
+│   ├── 泰安作文使用说明.md                          # 泰安市高二期末作文批量评审完整操作手册（v2.15）
 │   ├── resource/                                    # 作文描述 txt（人工评分+评语）
-│   ├── picture/                                     # 作文原图（0001.jpg, 0002.jpg...）
+│   ├── picture/                                     # 作文原图（0001.jpg, 0002.jpg... / 泰安市高二年级期末考试/*）
 │   ├── tests/                                       # pytest 146 个测试
-│   └── data/                                        # sample_dataset.jsonl 样例 + images/
+│   └── data/                                        # sample_dataset.jsonl 样例 / dataset_taian_hero.jsonl(11559 条) / images/
 │
 └── src/
     ├── main/
@@ -704,6 +706,41 @@ python -m batch.cli status                                       # 查看任务�
 ---
 
 ## 十五、版本变更记录
+
+### v2.15 (2026-05-04) — 泰安市高二期末作文批量评审数据集支持
+- **背景**：需要批量跑通一份特殊来源数据（泰安市高二年级期末考试作文扫描件，共 11111 张"背面"图），作文题为"英雄与选择"。图片命名规范：`姓名-学号-正面.jpg` / `姓名-学号-背面.jpg`；本批次仅存在"背面"图且存在约 213 个重名/同学号覆盖、10 个未下完 `.downloading` 文件。原 `gen_dataset.py` 依赖 `resource/*.txt` 评分清单，不适用此场景。
+- **改动**：
+  - 新增 `agent-review-service/scripts/gen_dataset_taian.py`：
+    - 直接扫描图片目录，正则 `^(.+)-(\d{6,})-(正面|背面)\.jpg$` 按学号聚合；
+    - 自动跳过 `.downloading` 与命名不符文件；
+    - 按学号去重，同学号重复名自动覆盖（最终保留字典序最后一个）；
+    - 兼容"仅正面 / 仅背面 / 正背齐全"三种图片形态，全部照常生成 `images` 列表；
+    - 固化作文题到 `ESSAY_TITLE` 常量（含完整材料 + 写作要求，中文引号 U+201C/U+201D，已规避 Python 字符串转义问题）；
+    - 输出 6 字段 `DatasetItem`（与 `gen_dataset.py` v2.12 对齐）+ `metadata.student_name / student_id / source=taian-gaoer-qimo`。
+  - 参数：`--pictures`（必填）、`--output`（必填）、`--grade`（默认"高中"）、`--limit`（默认 0 不限）。
+- **输出数据**：`agent-review-service/data/dataset_taian_hero.jsonl`，共 **11559 条**（其中正背面齐全 0 / 仅正面 0 / 仅背面 11559）。
+- **配套文档**：新增 `agent-review-service/泰安作文使用说明.md`（共 8 节）：
+  1. 前置准备（环境变量、图片目录规范）
+  2. 清单生成（全量 / 小样本 / 参数表 / 条目结构）
+  3. 批量评审启动（一键脚本 / 分步手动）
+  4. 进度监控 & 断点续跑（`status` / `--retry-failed`）
+  5. 结果查看（jq 统计模板）
+  6. 注意事项（费用、限流、Java Arena 依赖）
+  7. 速查命令（复制即用：调试 20 条 / 全量 / 失败重跑）
+  8. 关键路径一览
+- **典型命令**：
+  ```bash
+  cd agent-review-service
+  python3 scripts/gen_dataset_taian.py \
+      --pictures picture/泰安市高二年级期末考试 \
+      --output  data/dataset_taian_hero.jsonl
+  # → ✅ 生成 11559 条
+  python3 -m batch.cli run \
+      -i data/dataset_taian_hero.jsonl -c 5 \
+      --store data/batch_tasks_taian.sqlite \
+      -o      data/results_taian.jsonl
+  ```
+- **影响面**：无 Java 代码改动；无 DB schema 改动；`agent-review-service` 仅新增脚本与说明文档，原 `gen_dataset.py` 流程完全不受影响。
 
 ### v2.14.1 (2026-04-25) — v2.14 缺陷修复
 - **问题 ①：`BattleMapper.selectHistoryPage` 投票人串号**
