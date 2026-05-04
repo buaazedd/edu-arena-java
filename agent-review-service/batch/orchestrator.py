@@ -64,7 +64,7 @@ class BatchOrchestrator:
     # ------------------- 单条流程 -------------------
 
     async def _poll_until_ready(
-        self, battle_id: int, timeout: int = 180, interval: float = 2.0
+        self, battle_id: int, timeout: int = 600, interval: float = 3.0
     ) -> ArenaBattleVO:
         """轮询直到 status != 'generating'。"""
         deadline = time.time() + timeout
