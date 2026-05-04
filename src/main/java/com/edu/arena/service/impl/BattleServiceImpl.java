@@ -43,6 +43,8 @@ import com.edu.arena.service.LeaderboardService;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,24 +70,33 @@ public class BattleServiceImpl implements BattleService {
     private final LeaderboardService leaderboardService;
     private final CacheService cacheService;
     private final EloMatchService eloMatchService;
+
+    /**
+     * 自注入代理：用于在同一个类内部跨方法触发 {@code @Transactional}。
+     * Spring 的 {@code @Transactional} 依赖 CGLIB/JDK 动态代理，内部 this 调用不会走代理，
+     * 因此通过自注入拿到被代理后的 bean，再调用事务方法，才能正确开启/提交事务。
+     * 加 {@link Lazy} 避免构造期循环依赖。
+     */
+    @Autowired
+    @Lazy
+    private BattleServiceImpl self;
     
     /** 每日对战限流：每用户每天最多50次 */
     private static final int DAILY_BATTLE_LIMIT = 50;
-    private static final int MAX_SLOT_RETRY = 2;
     private static final int FALLBACK_MODEL_COUNT = 4;
     
     /**
      * 有界线程池 - 用于并行调用模型
-     * 核心线程数: 4 (支持同时处理多对战)
-     * 最大线程数: 20
-     * 队列容量: 100
+     * 核心线程数: 8  (常驻，支撑批量评审 4~8 对战稳态并行)
+     * 最大线程数: 40 (单次批量建议客户端 ≤ 20 并发，每对战 2 个槽位 = 40 线程峰值)
+     * 队列容量: 200 (突发缓冲，避免 CallerRunsPolicy 频繁触发)
      */
     private final ExecutorService executor = new ThreadPoolExecutor(
-            4,                                      // 核心线程数
-            20,                                     // 最大线程数
+            8,                                      // 核心线程数
+            40,                                     // 最大线程数
             60L,                                    // 空闲线程存活时间
             TimeUnit.SECONDS,
-            new ArrayBlockingQueue<>(100),          // 有界队列
+            new ArrayBlockingQueue<>(200),          // 有界队列
             new ThreadPoolExecutor.CallerRunsPolicy()  // 拒绝策略: 调用者执行
     );
 
@@ -111,14 +122,14 @@ public class BattleServiceImpl implements BattleService {
     }
 
     @Override
-    @Transactional
     public Long createBattle(Long userId, CreateBattleRequest request) {
-        // 用户每日对战限流检查
+        // === 阶段一：事务外的快速校验 & 慢 IO（图片压缩）===
+        // 用户每日对战限流检查（Redis 操作，不占 JDBC 连接）
         int battleCount = cacheService.checkAndIncrementUserBattleLimit(userId, DAILY_BATTLE_LIMIT);
         if (battleCount > DAILY_BATTLE_LIMIT) {
             throw new BusinessException("您今日的对战次数已达上限(" + DAILY_BATTLE_LIMIT + "次)，请明天再试");
         }
-        
+
         // 验证内容：图片为主要输入方式，必须上传图片
         if (request.getImages() == null || request.getImages().isEmpty()) {
             throw new BusinessException("请上传作文图片");
@@ -131,44 +142,59 @@ public class BattleServiceImpl implements BattleService {
             request.setEssayContent(null);
         }
 
-        // 验证图片并压缩
-        if (request.getImages() != null && !request.getImages().isEmpty()) {
-            if (request.getImages().size() > 10) {
-                throw new BusinessException("最多上传10张图片");
+        // 图片压缩（CPU/IO 密集，放在事务外，避免占用 JDBC 连接）
+        if (request.getImages().size() > 10) {
+            throw new BusinessException("最多上传10张图片");
+        }
+        compressImagesInPlace(request);
+
+        // === 阶段二：进入事务，仅做 DB 读写与 ELO 匹配 ===
+        return self.doCreateBattleTx(userId, request, battleCount);
+    }
+
+    /**
+     * 对 {@link CreateBattleRequest#getImages()} 做就地压缩，压缩失败的图片回退原图。
+     */
+    private void compressImagesInPlace(CreateBattleRequest request) {
+        List<String> originals = request.getImages();
+        List<String> compressedImages = new ArrayList<>(originals.size());
+        for (int i = 0; i < originals.size(); i++) {
+            String base64 = originals.get(i);
+            if (base64 == null || base64.isBlank()) {
+                log.warn("图片内容为空，跳过压缩: index={}", i);
+                continue;
             }
 
-            List<String> compressedImages = new ArrayList<>();
-            for (int i = 0; i < request.getImages().size(); i++) {
-                String base64 = request.getImages().get(i);
-                if (base64 == null || base64.isBlank()) {
-                    log.warn("图片内容为空，跳过压缩: index={}", i);
+            try {
+                int originalLen = base64.length();
+                String compressed = ImageCompressUtils.compressBase64Image(base64);
+                if (compressed == null || compressed.isBlank()) {
+                    log.warn("图片压缩结果为空，回退原图: index={}, originalLen={}", i, originalLen);
+                    compressedImages.add(base64);
                     continue;
                 }
 
-                try {
-                    int originalLen = base64.length();
-                    String compressed = ImageCompressUtils.compressBase64Image(base64);
-                    if (compressed == null || compressed.isBlank()) {
-                        log.warn("图片压缩结果为空，回退原图: index={}, originalLen={}", i, originalLen);
-                        compressedImages.add(base64);
-                        continue;
-                    }
-
-                    compressedImages.add(compressed);
-                    log.info("图片压缩完成: index={}, originalBase64Len={}, compressedBase64Len={}, savedRatio={}%, hasChange={}",
-                            i,
-                            originalLen,
-                            compressed.length(),
-                            String.format("%.1f", compressed.length() * 100.0 / originalLen),
-                            !compressed.equals(base64));
-                } catch (Exception e) {
-                    log.warn("图片压缩失败，回退原图: index={}, err={}", i, e.getMessage(), e);
-                    compressedImages.add(base64);
-                }
+                compressedImages.add(compressed);
+                log.info("图片压缩完成: index={}, originalBase64Len={}, compressedBase64Len={}, savedRatio={}%, hasChange={}",
+                        i,
+                        originalLen,
+                        compressed.length(),
+                        String.format("%.1f", compressed.length() * 100.0 / originalLen),
+                        !compressed.equals(base64));
+            } catch (Exception e) {
+                log.warn("图片压缩失败，回退原图: index={}, err={}", i, e.getMessage(), e);
+                compressedImages.add(base64);
             }
-            request.setImages(compressedImages);
         }
+        request.setImages(compressedImages);
+    }
 
+    /**
+     * createBattle 的短事务：创建 Task / Battle、ELO 匹配、落库。不包含图片压缩和 LLM 调用。
+     * <p>必须是 public 且通过 {@link #self} 代理调用才能开启事务。</p>
+     */
+    @Transactional
+    public Long doCreateBattleTx(Long userId, CreateBattleRequest request, int battleCount) {
         // 创建Task
         Task task = new Task();
         task.setUserId(userId);
@@ -176,7 +202,7 @@ public class BattleServiceImpl implements BattleService {
         task.setEssayContent(request.getEssayContent() != null ? request.getEssayContent() : null);
         task.setGradeLevel(request.getGradeLevel());
         task.setRequirements(request.getRequirements());
-        
+
         // 处理图片
         boolean hasImages = request.getImages() != null && !request.getImages().isEmpty();
         task.setHasImages(hasImages);
@@ -185,7 +211,7 @@ public class BattleServiceImpl implements BattleService {
             task.setImagesJson(cn.hutool.json.JSONUtil.toJsonStr(request.getImages()));
             task.setImageCount(request.getImages().size());
         }
-        
+
         taskMapper.insert(task);
 
         // 随机选择两个模型
@@ -228,15 +254,33 @@ public class BattleServiceImpl implements BattleService {
 
         cacheService.set(getFallbackKey(battle.getId()), fallbackModels, CacheService.TTL_SHORT);
 
-        log.info("创建对战: battleId={}, modelA={}, modelB={}, matchType={}, eloDiff={}, hasImages={}, fallbackCount={}, userTodayCount={}", 
+        log.info("创建对战: battleId={}, modelA={}, modelB={}, matchType={}, eloDiff={}, hasImages={}, fallbackCount={}, userTodayCount={}",
                 battle.getId(), modelA.getName(), modelB.getName(), matchResult.getMatchType(),
                 matchResult.getEloDiff(), hasImages, fallbackModels.size(), battleCount);
         return battle.getId();
     }
 
     @Override
-    @Transactional
     public BattleVO generateBattle(Long battleId) {
+        // === 阶段一：短读事务，加载上下文并立即释放连接 ===
+        GenerateContext ctx = self.loadGenerateContextTx(battleId);
+
+        // === 阶段二：无事务阶段，进行耗时的并行 LLM 调用 ===
+        // 此阶段不持有任何 JDBC 连接，HikariCP 池中的连接可被其他请求使用
+        SlotResponses slotResponses = callBothSlotsInParallel(
+                ctx.modelA(), ctx.modelB(), ctx.fallbackModels(), ctx.task(), battleId);
+
+        // === 阶段三：短写事务，仅落库和清缓存 ===
+        return self.persistGenerateResultTx(battleId, slotResponses.responseA(), slotResponses.responseB());
+    }
+
+    /**
+     * generateBattle 的读事务：加载 Battle / Task / Models 与 fallback 列表，并做状态校验。
+     * <p>使用 {@code readOnly=true} 让连接池/数据库更友好地管理只读连接；
+     * 必须通过 {@link #self} 代理调用。</p>
+     */
+    @Transactional(readOnly = true)
+    public GenerateContext loadGenerateContextTx(Long battleId) {
         Battle battle = battleMapper.selectById(battleId);
         if (battle == null) {
             throw new BusinessException("对战不存在");
@@ -261,10 +305,29 @@ public class BattleServiceImpl implements BattleService {
             task.setImageBase64List(images);
         }
 
-        List<Model> fallbackModels = cacheService.getOrLoad(getFallbackKey(battleId), CacheService.TTL_SHORT, ArrayList::new);
-        SlotResponses slotResponses = callBothSlotsInParallel(modelA, modelB, fallbackModels, task, battleId);
-        String responseA = slotResponses.responseA();
-        String responseB = slotResponses.responseB();
+        List<Model> fallbackModels = cacheService.getOrLoad(
+                getFallbackKey(battleId), CacheService.TTL_SHORT, ArrayList::new);
+
+        return new GenerateContext(battle, task, modelA, modelB, fallbackModels);
+    }
+
+    /**
+     * generateBattle 的写事务：更新 Battle 响应内容与状态，并构建返回 VO。
+     * <p>使用 {@code REQUIRES_NEW} 是多余的（此时事务栈已空），保持默认即可。</p>
+     */
+    @Transactional
+    public BattleVO persistGenerateResultTx(Long battleId, String responseA, String responseB) {
+        // 需要重新查询 Battle，因为经过了漫长的 LLM 调用阶段，数据库状态可能已变化
+        Battle battle = battleMapper.selectById(battleId);
+        if (battle == null) {
+            throw new BusinessException("对战不存在");
+        }
+        if (!"generating".equals(battle.getStatus())) {
+            // 可能被并发请求（或超时重试）已提前完成，直接返回当前视图，避免覆盖
+            log.warn("persistGenerateResult: battle 状态已非 generating，跳过写入: battleId={}, status={}",
+                    battleId, battle.getStatus());
+            return buildBattleVO(battle);
+        }
 
         battle.setResponseA(responseA);
         battle.setResponseB(responseB);
@@ -274,6 +337,13 @@ public class BattleServiceImpl implements BattleService {
         cacheService.delete(getFallbackKey(battleId));
 
         return buildBattleVO(battle);
+    }
+
+    /**
+     * generateBattle 读阶段的只读上下文快照。
+     */
+    private record GenerateContext(Battle battle, Task task, Model modelA, Model modelB,
+                                   List<Model> fallbackModels) {
     }
 
     private SlotResponses callBothSlotsInParallel(Model modelA, Model modelB, List<Model> fallbackModels, Task task, Long battleId) {
@@ -355,23 +425,6 @@ public class BattleServiceImpl implements BattleService {
     }
 
     private record SlotCallResult(String response, long costMs) {
-    }
-
-    /**
-     * 保存对战结果
-     */
-    private void saveBattleResult(Battle battle, String responseA, String responseB, String status) {
-        try {
-            battle.setResponseA(responseA);
-            battle.setResponseB(responseB);
-            battle.setStatus(status);
-            battle.setUpdatedAt(LocalDateTime.now());
-            battleMapper.updateById(battle);
-            log.info("保存对战结果: battleId={}, status={}, lenA={}, lenB={}", 
-                    battle.getId(), status, responseA.length(), responseB.length());
-        } catch (Exception e) {
-            log.error("保存对战结果失败: battleId={}", battle.getId(), e);
-        }
     }
 
     @Override
