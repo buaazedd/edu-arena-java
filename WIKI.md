@@ -1,6 +1,7 @@
 # 📚 edu-arena-java 项目 Wiki
 
-> **最后更新**: 2026-05-04 (v2.15: 新增泰安市高二期末作文批量评审数据集支持 —— ① 新增脚本 `agent-review-service/scripts/gen_dataset_taian.py`，针对"姓名-学号-正面/背面.jpg"命名规范按学号聚合生成 `DatasetItem`，兼容"仅正面 / 仅背面 / 正背齐全"；② 固化英雄与选择作文题到脚本 `ESSAY_TITLE` 常量；③ 输出 `data/dataset_taian_hero.jsonl`（11559 条）；④ 新增使用说明 `agent-review-service/泰安作文使用说明.md`，覆盖清单生成 / 一键批量 / 分步手动 / 断点续跑 / 失败重跑 / 结果统计全流程)  
+> **最后更新**: 2026-05-05 (v2.15.1: HikariCP 连接池扩容 —— ① `application.yml` `spring.datasource.hikari.maximum-pool-size` 20→80、`minimum-idle` 5→10；② 新增 `leak-detection-threshold=120000` 连接泄漏检测、`validation-timeout=5000`、`keepalive-time=300000` 保活探测；③ 背景：批量评审（`agent-review-service` `-c 10`）触发 `SQLTransientConnectionException: Connection is not available, request timed out after 30000ms` —— `BattleServiceImpl.createBattle/generateBattle` 的 `@Transactional` 内嵌同步 LLM 调用导致连接被长时间占用，原 20 连接池瞬间被打满；④ WIKI「八、配置说明」补充连接池参数与已知瓶颈说明)  
+> **v2.15** (2026-05-04): 新增泰安市高二期末作文批量评审数据集支持 —— ① 新增脚本 `agent-review-service/scripts/gen_dataset_taian.py`，针对"姓名-学号-正面/背面.jpg"命名规范按学号聚合生成 `DatasetItem`，兼容"仅正面 / 仅背面 / 正背齐全"；② 固化英雄与选择作文题到脚本 `ESSAY_TITLE` 常量；③ 输出 `data/dataset_taian_hero.jsonl`（11559 条）；④ 新增使用说明 `agent-review-service/泰安作文使用说明.md`，覆盖清单生成 / 一键批量 / 分步手动 / 断点续跑 / 失败重跑 / 结果统计全流程
 > **v2.14.1** (2026-04-25): 修复 v2.14 两处隐性缺陷 —— ① `BattleMapper.selectHistoryPage` 原用 `MAX(v.user_id)+MAX(u.username)+MAX(u.display_name)` 聚合，一场对战有多条投票时三字段可能来自不同行造成"身份串号"，改为子查询 `MIN(v2.id)` 定位主投票行后 LEFT JOIN；② `BattleController.getBattle` 脱敏前对 `BattleVoteVO` 做浅拷贝，避免修改缓存命中持有的 VO 对象跨角色/跨请求污染  
 > **v2.14** (2026-04-25): 投票人追溯 —— 对战历史列表新增「投票人」列、详情弹窗修复并展示投票人，后台管理新增「投票记录」Tab；身份口径统一 `displayName→username`，服务端按角色脱敏（admin 全量；teacher 仅自己真名，其他显示「匿名」）；新增 `AdminVoteController` + `VoteQueryService` + `BattleVoteVO`/`AdminVoteItemVO`/`AdminVoteQuery`；`BattleMapper.selectHistoryPage` 与 `VoteMapper.selectVotePage` 相应扩展  
 > **v2.13** (2026-04-25): `agent-review-service/README.md` 全面重写——新增「多智能体架构」专章详解 preprocess / dispatch / dimension_agent / arbitrator / VoteMapper 各节点职责与归约机制；拆分并扩充「启动说明」为服务启动（3 种方式）+ 批量数据准备 + 跑批（一键/手动）四段式端到端指南；修订默认 LLM 模型为 `gpt-5-mini`/`gpt-5`，补全环境变量表  
@@ -455,6 +456,17 @@ server.port: 5001                    # 服务端口
 spring.datasource.url: jdbc:mysql://... # MySQL 连接
 spring.data.redis.host: ...          # Redis 连接
 
+# HikariCP 连接池（v2.15.1 上调以支撑批量评审并发）
+spring.datasource.hikari:
+  maximum-pool-size: 80              # 最大连接数（默认10→20→80，支撑 agent-review-service 批量 -c 10~20 并发）
+  minimum-idle: 10                   # 最小空闲连接
+  idle-timeout: 300000               # 空闲超时 5min
+  connection-timeout: 30000          # 获取连接超时 30s
+  max-lifetime: 1800000              # 连接最大生命周期 30min
+  leak-detection-threshold: 120000   # 连接泄漏检测阈值 2min（超过仍未归还会打 warn 日志）
+  validation-timeout: 5000           # 连接校验超时 5s
+  keepalive-time: 300000             # 空闲连接保活探测 5min
+
 jwt.secret: ...                      # JWT 密钥(≥256bit)
 jwt.expiration: 86400000             # JWT 有效期(24h)
 
@@ -463,6 +475,8 @@ ai.base-url: https://api.aihubmix.com/v1/chat/completions  # AI API 地址
 
 edu-arena.auth-bypass-enabled: false # 认证旁路开关
 ```
+
+> ⚠️ **已知瓶颈**：`BattleServiceImpl.createBattle` / `generateBattle` / `vote` 均声明 `@Transactional`，其中 `generateBattle` 内部会同步调用 LLM（`AiClient`），整个事务期间独占一条 JDBC 连接。批量跑任务时建议：① 客户端并发 ≤ `maximum-pool-size/2`；② 后续可考虑把 LLM 调用从事务中剥离（只在真正写 DB 时开事务），彻底解耦慢外部 IO 与 DB 连接占用。
 
 ---
 
