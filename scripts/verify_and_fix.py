@@ -16,7 +16,7 @@ import pymysql
 SERVER_BASE = "http://8.219.130.23:5001"
 ADMIN_USER = "admin"
 ADMIN_PASS = "admin123"
-AIHUBMIX_KEY = "sk-LEc0CxRia23Ti4NqA1Ee05Be8c1a41E09c25DbEa30Db080e"
+AIHUBMIX_KEY = "sk-u9ycJyefdqXQ2gpf8fC3F1756b03468e9dE6Bc8bA26fE7Fd"
 AIHUBMIX_URL = "https://api.aihubmix.com/v1/chat/completions"
 TEST_IMAGE = "/Users/trentzhao/Documents/edu-arena-java/agent-review-service/resource/picture/chinese/0018.jpg"
 IMG_TIMEOUT = 90

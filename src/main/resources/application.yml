@@ -57,7 +57,7 @@ jwt:
 
 # AI API配置
 ai:
-  api-key: sk-LEc0CxRia23Ti4NqA1Ee05Be8c1a41E09c25DbEa30Db080e
+  api-key: sk-u9ycJyefdqXQ2gpf8fC3F1756b03468e9dE6Bc8bA26fE7Fd
   base-url: https://api.aihubmix.com/v1/chat/completions
 
 # Knife4j配置
