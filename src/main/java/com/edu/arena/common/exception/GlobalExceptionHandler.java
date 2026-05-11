@@ -3,6 +3,7 @@ package com.edu.arena.common.exception;
 import com.edu.arena.common.result.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.lang.NonNull;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -59,6 +60,15 @@ public class GlobalExceptionHandler {
                 .orElse("参数绑定失败");
         log.warn("参数绑定失败: {}", message);
         return Result.error(400, message);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<Void> handleHttpMessageNotReadable(@NonNull HttpMessageNotReadableException e) {
+        // 客户端 body 残缺 / JSON 格式错误 / 连接提前关闭导致的 EOF
+        // 应返回 400 让客户端自行修正，而不是 500 触发客户端 5xx 重试风暴
+        log.warn("请求体解析失败: {}", e.getMostSpecificCause().getMessage());
+        return Result.error(400, "请求体格式错误");
     }
 
     @ExceptionHandler(Exception.class)

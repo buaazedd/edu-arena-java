@@ -123,7 +123,30 @@ class ArenaClient:
             if self._token:
                 return self._token
             body = ArenaLoginRequest(username=self.username, password=self.password).model_dump()
-            raw = await self._request("POST", "/api/login", json_body=body, auth=False)
+            # login 单独用一次性短连接，避免共享 AsyncClient 的连接池里某条坏连接
+            # 被 3 次重试连续复用（服务端会因 body 读到一半 EOF 抛 JsonEOFException → 500）。
+            async def _login_once() -> Dict[str, Any]:
+                limits = httpx.Limits(max_keepalive_connections=0, max_connections=1)
+                async with httpx.AsyncClient(
+                    base_url=self.base_url, timeout=30.0, limits=limits,
+                    headers={"Connection": "close"},
+                ) as cli:
+                    resp = await cli.post("/api/login", json=body)
+                    if resp.status_code >= 500:
+                        raise httpx.HTTPStatusError(
+                            f"{resp.status_code}", request=resp.request, response=resp
+                        )
+                    if resp.status_code >= 400:
+                        raise ArenaApiError(
+                            f"Arena HTTP {resp.status_code}",
+                            http_status=resp.status_code, body=resp.text[:500],
+                        )
+                    try:
+                        return resp.json()
+                    except Exception as e:
+                        raise ArenaApiError(f"Arena 响应非 JSON: {e}", body=resp.text[:500]) from e
+
+            raw = await aretry_http(_login_once, max_attempts=5)
             vo: ArenaLoginVO = _unwrap(raw, ArenaLoginVO)
             self._token = vo.token
             logger.info(f"[arena] 登录成功 user={self.username} role={vo.role}")
