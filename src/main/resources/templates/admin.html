@@ -640,26 +640,72 @@ body {
         <div class="card-body">
           <h6 style="font-weight:600; margin-bottom:16px;"><i class="fa fa-download me-2"></i>偏好数据集导出</h6>
           <p class="text-muted" style="font-size:14px; margin-bottom:20px;">
-            导出标准化的人类偏好三元组数据集（prompt / chosen / rejected），可直接用于 DPO / RLHF 训练。
+            导出 ZIP 压缩包，包含 <code>data.jsonl</code>（每条 battle 完整数据：作文/批改/六维度评分/ELO 变化）、<code>images/</code>（作文图片，按 task 去重）、<code>manifest.json</code>（导出元信息）。
+            仅导出已投票（<code>status=voted</code>）的对战，脏数据自动过滤。
           </p>
-          <div class="d-flex gap-3">
-            <a href="/api/admin/export/preference" class="btn-primary-custom text-decoration-none" download>
-              <i class="fa fa-file-code me-2"></i>导出 JSON
-            </a>
-            <a href="/api/admin/export/jsonl" class="btn-outline-custom text-decoration-none" download>
-              <i class="fa fa-file-lines me-2"></i>导出 JSONL
-            </a>
+
+          <div class="row g-2 align-items-end mb-3">
+            <div class="col-md-2">
+              <label class="form-label">获胜方</label>
+              <select class="form-select" id="exportWinner">
+                <option value="">全部</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="tie">平局</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">模型（ID 或 model_id）</label>
+              <input class="form-control" id="exportModelId" placeholder="如 gpt-5-mini 或 12">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">起始日期</label>
+              <input class="form-control" id="exportStartDate" type="date">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">截止日期</label>
+              <input class="form-control" id="exportEndDate" type="date">
+            </div>
+            <div class="col-md-1">
+              <label class="form-label">最多条数</label>
+              <input class="form-control" id="exportLimit" type="number" min="1" placeholder="不限">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">&nbsp;</label>
+              <div class="form-check" style="padding-top:8px;">
+                <input class="form-check-input" type="checkbox" id="exportIncludeImages" checked>
+                <label class="form-check-label" for="exportIncludeImages" style="font-size:13px;">
+                  打包作文图片
+                </label>
+              </div>
+            </div>
           </div>
+
+          <div class="d-flex gap-3">
+            <button class="btn-primary-custom" onclick="downloadExportZip()">
+              <i class="fa fa-file-zipper me-2"></i>下载 ZIP
+            </button>
+            <button class="btn-outline-custom" onclick="resetExportFilters()">重置</button>
+          </div>
+
           <div class="mt-3 p-3" style="background:#f8fafc; border-radius:10px;">
-            <div class="card-title-sm mb-2">数据格式示例 (JSON)</div>
+            <div class="card-title-sm mb-2">ZIP 内 data.jsonl 单行结构</div>
             <pre style="font-size:12px; color:var(--text-mid); font-family:'JetBrains Mono',monospace; margin:0; white-space:pre-wrap;">{
-  "task_type": "作文批改",
-  "prompt": "【作文题目】论坚持的力量\n【学生作文】...",
-  "chosen": "获胜模型的批改回答...",
-  "rejected": "落败模型的批改回答...",
-  "chosen_model": "GPT-4o",
-  "rejected_model": "Qwen Max",
-  "label_source": "human_battle"
+  "schema_version": "1.0",
+  "battle":   { "battle_id": 12345, "status": "voted", "winner": "A", "created_at": "...", ... },
+  "task":     { "task_id": 6789, "essay_title": "...", "essay_content": null,
+                "grade_level": "高二", "has_images": true, "image_count": 3,
+                "essay_images": ["images/task_6789/01.jpg", "images/task_6789/02.jpg", ...] },
+  "model_a":  { "id": 12, "model_id": "gpt-5-mini",      "name": "...", "company": "OpenAI" },
+  "model_b":  { "id": 19, "model_id": "deepseek-v4-flash", "name": "...", "company": "DeepSeek" },
+  "responses":{ "response_a": "...", "response_b": "..." },
+  "vote":     { "vote_id": 9001, "winner": "A",
+                "dimensions": { "theme": {"winner":"A","reason":"..."}, ... ,
+                                "overall": {"winner":"A","reason":"..."} },
+                "vote_time_seconds": 18.4,
+                "elo": { "a_before": 1500.0, "a_after": 1512.3,
+                         "b_before": 1500.0, "b_after": 1487.7 },
+                "created_at": "..." }
 }</pre>
           </div>
         </div>
@@ -1104,6 +1150,62 @@ function resetVoteFilters() {
   document.getElementById('voteStartDate').value = '';
   document.getElementById('voteEndDate').value = '';
   loadAdminVotes(1);
+}
+
+// ========== 数据导出 Tab ==========
+async function downloadExportZip() {
+  const params = new URLSearchParams();
+  const winner = document.getElementById('exportWinner').value;
+  const modelId = document.getElementById('exportModelId').value.trim();
+  const sd = document.getElementById('exportStartDate').value;
+  const ed = document.getElementById('exportEndDate').value;
+  const limit = document.getElementById('exportLimit').value.trim();
+  const includeImages = document.getElementById('exportIncludeImages').checked;
+  if (winner) params.append('winner', winner);
+  if (modelId) params.append('modelId', modelId);
+  if (sd) params.append('startDate', sd);
+  if (ed) params.append('endDate', ed);
+  if (limit) params.append('limit', limit);
+  params.append('includeImages', includeImages ? 'true' : 'false');
+
+  const url = '/api/admin/export/dataset.zip' + (params.toString() ? '?' + params.toString() : '');
+  showToast('正在生成压缩包，请稍候…', 'success');
+  try {
+    const token = localStorage.getItem('token');
+    const headers = {};
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    const r = await fetch(url, { headers });
+    if (r.status === 401) { localStorage.clear(); location.href = '/'; return; }
+    if (!r.ok) {
+      let msg = '导出失败';
+      try { const j = await r.json(); msg = j.message || msg; } catch (_) {}
+      showToast(msg, 'error');
+      return;
+    }
+    const blob = await r.blob();
+    const cd = r.headers.get('Content-Disposition') || '';
+    let filename = 'preference_export.zip';
+    const m = /filename\s*=\s*"?([^";]+)"?/i.exec(cd);
+    if (m) filename = m[1];
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    showToast('导出完成', 'success');
+  } catch (e) {
+    showToast('导出失败：' + (e && e.message ? e.message : e), 'error');
+  }
+}
+
+function resetExportFilters() {
+  document.getElementById('exportWinner').value = '';
+  document.getElementById('exportModelId').value = '';
+  document.getElementById('exportStartDate').value = '';
+  document.getElementById('exportEndDate').value = '';
+  document.getElementById('exportLimit').value = '';
+  document.getElementById('exportIncludeImages').checked = true;
 }
 
 // Init - 并行加载所有数据，提升页面响应速度

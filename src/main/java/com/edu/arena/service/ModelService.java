@@ -46,14 +46,4 @@ public interface ModelService {
      */
     int getTotalUsers();
 
-    /**
-     * Export preference data as JSON
-     */
-    String exportPreferenceJson();
-
-    /**
-     * Export preference data as JSONL
-     */
-    String exportPreferenceJsonl();
-
 }

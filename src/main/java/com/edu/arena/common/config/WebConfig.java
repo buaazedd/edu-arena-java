@@ -19,8 +19,14 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void configureAsyncSupport(@NonNull AsyncSupportConfigurer configurer) {
-        // 配置SSE异步请求超时时间为5分钟
-        configurer.setDefaultTimeout(300_000);
+        // 异步请求超时：30 分钟。
+        // 同时覆盖：
+        //   1) SSE 长连接（聊天/对战流式输出）
+        //   2) StreamingResponseBody（/api/admin/export/dataset.zip 导出 ZIP，
+        //      含大批量 base64 图片解码 + 写盘，可能耗时较长）
+        // 必须 >= @Transactional(timeout=1800) 与 HikariCP leak-detection-threshold(1800000)，
+        // 否则会先抛 AsyncRequestTimeoutException 把连接强制关闭。
+        configurer.setDefaultTimeout(1_800_000L);
     }
 
     @Override

@@ -1,6 +1,5 @@
 package com.edu.arena.service.impl;
 
-import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.edu.arena.aiclient.AiClient;
@@ -9,7 +8,6 @@ import com.edu.arena.common.exception.BusinessException;
 import com.edu.arena.dto.request.AddModelRequest;
 import com.edu.arena.dto.response.ModelInfoVO;
 import com.edu.arena.dto.response.ModelProbeResultVO;
-import com.edu.arena.entity.Battle;
 import com.edu.arena.entity.Model;
 import com.edu.arena.entity.Task;
 import com.edu.arena.mapper.BattleMapper;
@@ -27,9 +25,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -249,37 +245,5 @@ public class ModelServiceImpl implements ModelService {
     @Override
     public int getTotalUsers() {
         return Math.toIntExact(userMapper.selectCount(null));
-    }
-
-    @Override
-    public String exportPreferenceJson() {
-        List<Battle> battles = battleMapper.selectList(null);
-        List<Map<String, Object>> data = new ArrayList<>();
-        for (Battle battle : battles) {
-            Map<String, Object> item = new HashMap<>();
-            item.put("battleId", battle.getId());
-            item.put("modelA", battle.getModelAId());
-            item.put("modelB", battle.getModelBId());
-            item.put("result", battle.getWinner());
-            item.put("createdAt", battle.getCreatedAt());
-            data.add(item);
-        }
-        return JSONUtil.toJsonPrettyStr(data);
-    }
-
-    @Override
-    public String exportPreferenceJsonl() {
-        List<Battle> battles = battleMapper.selectList(null);
-        StringBuilder sb = new StringBuilder();
-        for (Battle battle : battles) {
-            Map<String, Object> item = new HashMap<>();
-            item.put("battleId", battle.getId());
-            item.put("modelA", battle.getModelAId());
-            item.put("modelB", battle.getModelBId());
-            item.put("result", battle.getWinner());
-            item.put("createdAt", battle.getCreatedAt());
-            sb.append(JSONUtil.toJsonStr(item)).append("\n");
-        }
-        return sb.toString();
     }
 }

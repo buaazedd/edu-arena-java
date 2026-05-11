@@ -18,13 +18,24 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    # ===== LLM =====
-    ai_api_key: str = Field(default="", description="AiHubMix / OpenAI 兼容 API Key")
+    # ===== LLM（多 agent / multi 模式：AiHubMix）=====
+    ai_api_key: str = Field(default="", description="AiHubMix / OpenAI 兼容 API Key（multi 模式使用）")
     ai_base_url: str = Field(default="https://api.aihubmix.com/v1")
     ai_review_model: str = Field(default="gpt-5-mini", description="维度 Agent 使用模型（6 个并行，需快且便宜）")
     ai_arbitrator_model: str = Field(default="gpt-5", description="仲裁 Agent 使用模型（综合裁决，需最强推理）")
     ai_timeout: int = Field(default=90, ge=5, le=600)
     ai_max_retries: int = Field(default=3, ge=0, le=10)
+
+    # ===== 评审模式：single（DeepSeek 单 agent，1 次 LLM）/ multi（旧多 agent，9~10 次 LLM）=====
+    review_mode: str = Field(default="single", description="single | multi")
+
+    # ===== LLM（单 agent / single 模式：DeepSeek）=====
+    ai_api_key_single: str = Field(default="", description="DeepSeek API Key（single 模式使用，OpenAI 兼容协议）")
+    ai_base_url_single: str = Field(default="https://api.deepseek.com", description="DeepSeek OpenAI 兼容端点")
+    ai_review_model_single: str = Field(
+        default="deepseek-v4-flash",
+        description="single 模式模型，可选 deepseek-v4-flash / deepseek-v4-pro",
+    )
 
     # ===== 对战平台 =====
     arena_base_url: str = Field(default="http://localhost:5001")

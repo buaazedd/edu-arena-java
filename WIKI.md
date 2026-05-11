@@ -1,6 +1,9 @@
 # 📚 edu-arena-java 项目 Wiki
 
-> **最后更新**: 2026-05-07 (v2.15.6: 重建 `scripts/cleanup_failed_reviews.py` 清理脚本 —— v2.15.3 条目里声称已存在但实际从未落盘，本次按真实 schema 重写；① 识别文案默认覆盖 `LLM 评审失败，降级为 tie` / `this key is not enabled` / `quota exhausted` / `rate limit` / `Connection error` 等常见兜底/失败片段，6 个 `dim_*_reason` 字段任一命中即算污染；② **按依赖顺序级联清理 5 张表**：`quality_logs`（外键 `vote_id`，先删）→ `elo_history`（按 `battle_id`，每场 2 条）→ `votes` → `battles`（无残留投票的回退到 `ready` 并清空 `winner`，保留 `response_a/b`）→ `models`（按剩余 `elo_history` 最新一条回滚 `elo_score`，无历史则 1500.00；同时基于 `votes JOIN battles` 实时重算 `total_matches / win_count / lose_count / tie_count`）；③ **Redis 缓存同步清理**（键名与 `CacheService.java` 常量对齐）：`edu_arena:leaderboard:all` / `edu_arena:leaderboard:elo_history` / `edu_arena:models:active` / `edu_arena:battle:{id}` / `edu_arena:battle:fallback:{id}` / `edu_arena:model:detail:{id}` / `edu_arena:api:model_info:{id}`，永久计数器 `edu_arena:stats:total_votes` 用 `DECRBY` 按实际删除数递减；④ `essay_images` / `tasks` 明确不触碰（多 battle 共享 task，清理会殃及未污染对战）；⑤ 默认 dry-run 事务 ROLLBACK，加 `--apply` 才真实 COMMIT；支持 `--stats-only` / `--pattern` / `--battle-status-to ready\|failed` / `--keep-battles` / `--no-recompute-elo` / `--no-redis`；⑥ 首次 dry-run 实测：命中 47 条假 tie / 47 个 battle / 94 条 elo_history / 28 个模型需重算 ELO)  \n> **v2.15.5** (2026-05-07): `deploy.sh` 上传环节加固 —— 慢链路（实测远端 8.219.130.23 上行仅 ~125 KB/s，55 MB JAR 需 ~8 分钟）下默认 `scp` 在 macOS Ventura+ 走 SFTP 协议且无 keepalive，容易被中间网关空闲掐断报 `Connection closed by 8.219.130.23 port 22 / scp: Connection closed`；① `scp` 加 `-O` 强制回退传统 SCP 协议，对慢链路兼容性更好；② 抽出公共 `SSH_OPTS` 增加 `ServerAliveInterval=15 ServerAliveCountMax=4 ConnectTimeout=15`，连接 60s 无流量自动发心跳保活；③ 上传封装为 `upload()` 函数，第一次失败自动 sleep 5s 重试一次；④ 同时清理原脚本里冗余的 `scp ... 2>/dev/null \|\| scp ...` 兜底语句)  
+> **最后更新**: 2026-05-11 (v2.17.3: 偏好数据集导出跨境慢的根因定位与修复 —— 现象：4 条 voted 数据导出耗时 ~11s。实测 app(8.219.130.23) ↔ MySQL(180.76.229.245) ping RTT=207ms，跨境跨云链路。`writeJsonl` 第一遍 `taskMapper.selectBatchIds(taskIds)` 默认 `select *` 会把 `tasks.images_json` 这个 LONGTEXT（每条最多 ~5MB base64）也跨境拉回来，第二遍 `selectById` 又拉一次，总共上百 MB 的 base64 走两遍跨境网络。改动 `ExportServiceImpl`：① **第一遍批量拉 task 改用 `LambdaQueryWrapper.select(...)` 显式排除 `images_json` 列**，jsonl 仅依赖 `image_count/has_images` 推断图片数量与文件名，把 LONGTEXT 网络传输彻底从第一遍剥掉；② 新增 `writeImagesParallel`：第二遍按 task_id 用固定线程池（`IMAGE_FETCH_CONCURRENCY=4`，daemon 线程）并发 `taskMapper.selectById` 拉单条 imagesJson，主线程按提交顺序 `future.get()` 串行写 ZIP，把串行 N×RTT 压成 ≈ N/4 × RTT；③ 新增 `computeImageRelPathsByCount`（按 `image_count` 推路径，统一标 .jpg；真实后缀在第二遍解码时由 `detectImageExt` 按魔数确定写入 ZIP，jsonl 后缀与 ZIP 后缀的轻微不一致是已知偏差，消费方按 `task_%d/%02d.*` 通配定位）；④ 不再使用 `taskImagesJson` 内存缓存（v2.17.2 引入），改回只缓存 `Set<Long> taskIdsWithImages`；⑤ 各阶段加细粒度耗时日志 `[导出] page=N 拉取耗时 battle=Xms task(noBlob)=Yms vote=Zms model=Wms` / `[导出] task=ID fetch=Ams decode+zip=Bms`，便于线上回溯。预期 4 条数据 11s → ~2s。改动文件：`src/main/java/com/edu/arena/service/impl/ExportServiceImpl.java`)  
+> **最后更新-上一版**: 2026-05-11 (v2.17.2: 修复偏好数据集导出请求被双层超时拦截 —— 现象：前端点击导出后 nohup.out 出现 `AsyncRequestTimeoutException`、ZIP 下载中断；根因 ① `WebConfig.configureAsyncSupport` 把 Spring MVC 异步超时设为 5 分钟（300_000ms），`StreamingResponseBody` 跑超 5 分钟即被 Spring 自身终止 → 拉至 1_800_000ms 与事务/HikariCP 阈值对齐；② 线上 `/etc/nginx/conf.d/edu_arena.conf` 中 `location /api/` 仅设 `proxy_read_timeout 120s` 且未关闭 `proxy_buffering`，Nginx 在 120s 时即断开 upstream 并把 ZIP 全量缓冲再下发，**需在服务器同步将该 location 的 `proxy_read_timeout`/`proxy_send_timeout` 改为 1800s 并加 `proxy_buffering off; proxy_request_buffering off; proxy_cache off; proxy_set_header Authorization $http_authorization;` 后 `nginx -s reload`**。改动文件：`src/main/java/com/edu/arena/common/config/WebConfig.java`。v2.17.1: 修复 `ExportServiceImpl` 触发 HikariCP `Apparent connection leak detected` 告警 —— `exportZip` 增加 `@Transactional(readOnly=true, timeout=1800)` 让导出走单只读事务、复用同一 Connection；`application.yml` 中 `spring.datasource.hikari.leak-detection-threshold` 从 120000 放宽到 1800000，避免对长任务的噪声告警。v2.17: **偏好数据集导出接口重做** —— 旧 `/api/admin/export/preference` + `/api/admin/export/jsonl` 仅返回 5 个字段（battleId/modelA/modelB/result/createdAt）、模型仅给数据库主键、且一次性 `selectList(null)` 加载全表序列化为字符串再 `getBytes()` 返回，体量稍大就 OOM；现已**整体删除**，由全新主接口 `GET /api/admin/export/dataset.zip` 取代。新接口固定输出 ZIP 包：`data.jsonl`（每行一条 battle 完整数据：作文/题目/年级/A&B 完整批改/六维度评分+理由/ELO 前后快照/投票时长，模型信息以 `model_id` 字符串而非裸主键给出，预留 `schema_version=1.0`）+ `images/task_{id}/01.jpg|png|webp`（作文图片按 task 去重落地为文件，jsonl 内只引相对路径，base64 不再内嵌）+ `manifest.json`（导出时间/总条数/总图片数/过滤条件）；**强制只导 `status=voted`**，generating/ready/failed 全部过滤；分页 200 条/页 + 临时文件落 jsonl + 流式 `StreamingResponseBody` 写 ZIP，规避 OOM；图片 base64 不预先全量缓存到内存，第一遍仅收集 task_id 集合，第二遍按 task_id 单条查询 → 解码 → 写 ZIP；过滤参数 `winner / modelId(可传主键或 model_id 字符串) / startDate / endDate / battleId / includeImages / limit`；前端 admin.html 「数据导出」Tab 重做为下拉/日期/复选框筛选 + fetch+blob 携带 JWT 下载；新增 `dto/request/ExportQuery.java`、`service/ExportService.java`、`service/impl/ExportServiceImpl.java`，从 `ModelService/Impl` 移除 `exportPreferenceJson/Jsonl` 两个方法及残留 `cn.hutool.json` 导入)  
+> **v2.16** (2026-05-11): `agent-review-service` 新增 **DeepSeek 单 Agent 评审链路** —— 旧 LangGraph 多 Agent 流程每场对战 9~10 次 LLM 调用，AiHubMix 网关侧多次因调用过密被风控/封禁；新增 `app/review/single_agent.py` 走 DeepSeek OpenAI 兼容端点（`base_url=https://api.deepseek.com`，默认 `model=deepseek-v4-flash`，可选 `deepseek-v4-pro`），1 次 LLM 调用按固定 5 步 CoT 直接产出 6 维评分 + final_winner（不引入 skills/RAG/作文图片，最大化降低成本与封禁概率）；① `app/settings.py` 与 `.env` 新增 `REVIEW_MODE` / `AI_API_KEY_SINGLE` / `AI_BASE_URL_SINGLE` / `AI_REVIEW_MODEL_SINGLE`，默认 `REVIEW_MODE=single`；② `app/review/prompts.py` 追加 `SINGLE_AGENT_SYSTEM` + `single_agent_user`，写明固定 5 步 CoT；③ `app/review/service.py` 改为按 `review_mode` 分支；④ 对外契约（`ReviewResponse`/`VotePayload`）零变更，Java 端无感；⑤ 旧 AiHubMix 配置项与 LangGraph 节点全部保留可随时切回 `REVIEW_MODE=multi`
+> **v2.15.6** (2026-05-07): 重建 `scripts/cleanup_failed_reviews.py` 清理脚本 —— v2.15.3 条目里声称已存在但实际从未落盘，本次按真实 schema 重写；① 识别文案默认覆盖 `LLM 评审失败，降级为 tie` / `this key is not enabled` / `quota exhausted` / `rate limit` / `Connection error` 等常见兜底/失败片段，6 个 `dim_*_reason` 字段任一命中即算污染；② **按依赖顺序级联清理 5 张表**：`quality_logs`（外键 `vote_id`，先删）→ `elo_history`（按 `battle_id`，每场 2 条）→ `votes` → `battles`（无残留投票的回退到 `ready` 并清空 `winner`，保留 `response_a/b`）→ `models`（按剩余 `elo_history` 最新一条回滚 `elo_score`，无历史则 1500.00；同时基于 `votes JOIN battles` 实时重算 `total_matches / win_count / lose_count / tie_count`）；③ **Redis 缓存同步清理**（键名与 `CacheService.java` 常量对齐）：`edu_arena:leaderboard:all` / `edu_arena:leaderboard:elo_history` / `edu_arena:models:active` / `edu_arena:battle:{id}` / `edu_arena:battle:fallback:{id}` / `edu_arena:model:detail:{id}` / `edu_arena:api:model_info:{id}`，永久计数器 `edu_arena:stats:total_votes` 用 `DECRBY` 按实际删除数递减；④ `essay_images` / `tasks` 明确不触碰（多 battle 共享 task，清理会殃及未污染对战）；⑤ 默认 dry-run 事务 ROLLBACK，加 `--apply` 才真实 COMMIT；支持 `--stats-only` / `--pattern` / `--battle-status-to ready\|failed` / `--keep-battles` / `--no-recompute-elo` / `--no-redis`；⑥ 首次 dry-run 实测：命中 47 条假 tie / 47 个 battle / 94 条 elo_history / 28 个模型需重算 ELO)  \n> **v2.15.5** (2026-05-07): `deploy.sh` 上传环节加固 —— 慢链路（实测远端 8.219.130.23 上行仅 ~125 KB/s，55 MB JAR 需 ~8 分钟）下默认 `scp` 在 macOS Ventura+ 走 SFTP 协议且无 keepalive，容易被中间网关空闲掐断报 `Connection closed by 8.219.130.23 port 22 / scp: Connection closed`；① `scp` 加 `-O` 强制回退传统 SCP 协议，对慢链路兼容性更好；② 抽出公共 `SSH_OPTS` 增加 `ServerAliveInterval=15 ServerAliveCountMax=4 ConnectTimeout=15`，连接 60s 无流量自动发心跳保活；③ 上传封装为 `upload()` 函数，第一次失败自动 sleep 5s 重试一次；④ 同时清理原脚本里冗余的 `scp ... 2>/dev/null \|\| scp ...` 兜底语句)  
 > **v2.15.4** (2026-05-07): AiHubMix API Key 全量轮换 —— 旧 key `sk-LEc0Cx...0e`（`agent-review-service/.env::AI_API_KEY`，评审用）与 `sk-OyTz84ZS...8a`（Java 主服务在线生成用）经 `curl /v1/chat/completions` 验证均返回 401 `this key is not enabled`，即 AiHubmix 网关侧已禁用，是导致 v2.15.3 中 795 条假投票的根因；新 key `sk-u9ycJy...Fd` 实测 `/v1/models` 返回 200 且 `gpt-5-mini` 实际推理 200，已统一替换 4 处：`agent-review-service/.env::AI_API_KEY`、`src/main/resources/application.yml::ai.api-key`、`scripts/model_manage.py::AIHUBMIX_KEY`、`scripts/verify_and_fix.py::AIHUBMIX_KEY`；后续重启 Java 主服务和 `agent-review-service` 后即可对清理脚本回退的 795 个 `ready` 状态对战重跑评审)  
 > **v2.15.3** (2026-05-07，设计记录，脚本实际未落盘 —— 已由 v2.15.6 按真实 schema 重建): 原计划新增 `scripts/cleanup_failed_reviews.py` 清理脚本（用途见 v2.15.6）。注：本条原描述中"实测清理 795 条"为设计预估，未真实发生；以 v2.15.6 的 dry-run 实测数据（47 条）为准  
 > **v2.15.2** (2026-05-05): `BattleServiceImpl` 长事务拆分重构 —— ① `createBattle` 将图片压缩阶段（`compressImagesInPlace`）完全剥离出事务，仅保留 DB 读写在新的短事务方法 `doCreateBattleTx` 内；② `generateBattle` **彻底移除方法级 `@Transactional`**，拆为三段：读事务 `loadGenerateContextTx(readOnly=true)` → **无事务的并行 LLM 调用** → 写事务 `persistGenerateResultTx`，LLM 调用期间不占用任何 JDBC 连接；③ 通过 `@Autowired @Lazy BattleServiceImpl self` 自注入代理，解决内部 this 调用不走事务代理的问题；④ 新增 `private record GenerateContext` 作为读阶段上下文快照；⑤ `persistGenerateResultTx` 增加 `status != generating` 的幂等保护，避免并发重试覆盖已完成结果；⑥ 模型并行调用线程池扩容：核心 4→8、最大 20→40、队列 100→200；⑦ 清理死代码 `MAX_SLOT_RETRY` 常量和未使用的 `saveBattleResult` 私有方法；⑧ 效果：批量评审 -c 10 并发下，HikariCP 连接峰值占用从 "并发数 × LLM 时长" 降到 "并发数 × 毫秒级事务"，彻底解决 `SQLTransientConnectionException: Connection is not available` 问题
@@ -96,14 +99,15 @@ edu-arena-java/
 │   │   │   ├── review_dto.py                        # ReviewRequest/ReviewResponse/VotePayload
 │   │   │   ├── review_models.py                     # DimensionKey/DimensionScore/ReviewReport
 │   │   │   └── dataset_dto.py                       # DatasetItem 离线清单条目
-│   │   ├── review/                                  # 多智能体核心
-│   │   │   ├── graph.py                             # LangGraph StateGraph 装配
+│   │   ├── review/                                  # 多智能体核心 + 单 Agent 评审（v2.16）
+│   │   │   ├── graph.py                             # LangGraph StateGraph 装配（multi 模式）
 │   │   │   ├── state.py                             # GraphState TypedDict (Annotated[List,add] 并行合并)
-│   │   │   ├── llm.py                               # AsyncOpenAI 封装(JSON mode + 多模态)
-│   │   │   ├── prompts.py                           # preprocess/dim/arbitrator prompt
+│   │   │   ├── llm.py                               # AsyncOpenAI 封装(JSON mode + 多模态)，OpenAI 兼容协议复用于 DeepSeek
+│   │   │   ├── prompts.py                           # preprocess/dim/arbitrator + SINGLE_AGENT_SYSTEM(5 步 CoT)
 │   │   │   ├── decision.py                          # VoteMapper (A/B → left/right)
-│   │   │   ├── service.py                           # ReviewService 外观类
-│   │   │   └── nodes/                               # preprocess/dispatch/dimension_agent/arbitrator
+│   │   │   ├── single_agent.py                      # 【v2.16 新增】DeepSeek 单 Agent，1 次 LLM 产出 6 维 + final_winner
+│   │   │   ├── service.py                           # ReviewService 外观类，按 REVIEW_MODE=single/multi 分支
+│   │   │   └── nodes/                               # preprocess/dispatch/dimension_agent/arbitrator（仅 multi 模式使用）
 │   │   ├── rag/                                     # ChromaDB 三集合
 │   │   │   ├── store.py / retriever.py / embedding.py
 │   │   │   └── seed/{rubric.md,exemplar.jsonl,gold_case.jsonl}
@@ -181,12 +185,13 @@ edu-arena-java/
     │   │   │   └── EssayImageMapper.java
     │   │   │
     │   │   ├── dto/
-    │   │   │   ├── request/                         # 7 个请求 DTO
+    │   │   │   ├── request/                         # 8 个请求 DTO
     │   │   │   │   ├── LoginRequest.java
     │   │   │   │   ├── RegisterRequest.java
     │   │   │   │   ├── CreateBattleRequest.java
     │   │   │   │   ├── VoteRequest.java
     │   │   │   │   ├── AddModelRequest.java
+    │   │   │   │   ├── ExportQuery.java             # 【v2.17】偏好数据集导出过滤参数
     │   │   │   │   ├── MessageContentItem.java      # 多模态消息构建
     │   │   │   │   └── AdminVoteQuery.java          # 后台投票记录筛选(page/size/userId/keyword/battleId/startDate/endDate)
     │   │   │   └── response/                        # 13 个响应 VO
@@ -334,8 +339,7 @@ quality_logs ── votes (1:N)
 | POST | `/api/admin/models` | 添加模型(自动拉取API信息) | ✅ (admin) |
 | PUT | `/api/admin/models/{id}/toggle` | 切换模型启用/禁用 | ✅ (admin) |
 | GET | `/api/admin/stats` | 获取平台统计(总对战/总用户) | ✅ (admin) |
-| GET | `/api/admin/export/preference.json` | 导出偏好数据(JSON) | ✅ (admin) |
-| GET | `/api/admin/export/preference.jsonl` | 导出偏好数据(JSONL) | ✅ (admin) |
+| GET | `/api/admin/export/dataset.zip` | **偏好数据集导出（唯一主接口）**：流式输出 ZIP，内含 `data.jsonl`（每条 battle 完整数据：作文/题目/年级/A&B 批改/六维度评分+理由/ELO 前后/投票时长）、`images/task_{id}/*`（作文图片按 task 去重）、`manifest.json`（元信息）。**仅导 `status=voted`**，脏数据自动过滤。查询参数：`winner / modelId(主键或 model_id) / startDate / endDate / battleId / includeImages / limit` | ✅ (admin) |
 | POST | `/api/admin/models/probe` | 探测所有模型可用性 | ✅ (admin) |
 | GET | `/api/admin/votes` | **后台投票记录分页查询**；参数 `page/size/userId/keyword/battleId/startDate/endDate`，admin 视角返回完整投票人与投票明细 | ✅ (admin) |
 
@@ -528,6 +532,23 @@ edu-arena.auth-bypass-enabled: false # 认证旁路开关
 1. **Multi-Agent 评审服务**：基于 LangGraph 的 DAG 工作流（预处理 → 6 维度 Agent 并行 → 仲裁 → 决策器），替代人类专家评审两份 AI 批改。
 2. **离线批量处理系统**：读 JSONL 清单，批量调 Java 平台完成"创建→生成→评审→投票"全链路，支持断点续跑。
 
+### 评审模式（v2.16）
+
+服务运行时支持两种评审链路，通过环境变量 `REVIEW_MODE` 切换，默认 **single**：
+
+| 模式 | LLM 调用次数 | 模型 | base_url | 配置项 | 适用场景 |
+|------|---------------|------|----------|--------|----------|
+| **single**（默认） | **1 次/场** | `deepseek-v4-flash`（默认）/ `deepseek-v4-pro` | `https://api.deepseek.com`（OpenAI 兼容） | `AI_API_KEY_SINGLE` / `AI_BASE_URL_SINGLE` / `AI_REVIEW_MODEL_SINGLE` | 默认链路，最快/最省/最不易被风控；按固定 5 步 CoT 一次性产出 6 维评分 + final_winner |
+| **multi**（fallback） | 9~10 次/场 | `gpt-5-mini`（维度）/ `gpt-5`（仲裁） | `https://api.aihubmix.com/v1`（AiHubMix） | `AI_API_KEY` / `AI_BASE_URL` / `AI_REVIEW_MODEL` / `AI_ARBITRATOR_MODEL` | 旧链路，需要细粒度多 Agent 复盘时启用 |
+
+实现要点：
+- single 模式由 `app/review/single_agent.py::run_single_review` 完成；prompt 定义在 `prompts.py::SINGLE_AGENT_SYSTEM` + `single_agent_user`。
+- 固定 5 步 CoT：① 通读 A 提炼优点/问题/建议 → ② 通读 B 同样提炼 → ③ 对 theme/imagination/logic/language/writing 五维度对比打分 → ④ 综合前 5 维评 overall → ⑤ 自检（分差 ≤0.5 必须 tie、final_winner==overall.winner、evidence 必须摘自原文）后输出严格 JSON。
+- 输入仅含题目/年级/批改要求/A 全文/B 全文，**不带 skills、不带 RAG、不带作文图片**，最大化降低 token 与风控概率。
+- `LLMClient` 已是 OpenAI 兼容协议，可直连 DeepSeek 端点；single 与 multi 各自持有独立 LLMClient 实例，互不干扰。
+- `ReviewService` 在初始化时根据 `review_mode` 决定是否加载 LangGraph，single 模式下不加载，避免启动开销与不必要依赖。
+- 对外契约（`ReviewResponse` / `VotePayload`）零变更，Java 端零感知。
+
 ### 技术栈
 
 FastAPI + LangGraph + ChromaDB + OpenAI SDK（AiHubMix）+ Pydantic v2 + httpx + SQLite + loguru + tenacity + Pillow
@@ -709,7 +730,8 @@ python -m batch.cli status                                       # 查看任务�
 | 新增数据库表 | `entity/` + `mapper/` + `db/init_complete.sql` |
 | 修改投票维度 | `VoteRequest.java` + `Vote.java` + `BattleServiceImpl.vote()` + `battle.html` + `init_complete.sql` + `agent-review-service/app/contracts/` + `app/review/` |
 | 修改胜负判定逻辑 | `BattleServiceImpl.vote()` — 当前基于 `dimOverall` 字段 |
-| 修改评审 Agent / LLM 行为 | `agent-review-service/app/review/`（`prompts.py` / `nodes/` / `graph.py`） |
+| 修改评审 Agent / LLM 行为 | `agent-review-service/app/review/`（`prompts.py` / `nodes/` / `graph.py` / `single_agent.py` / `service.py`） |
+| 切换评审模式 / 替换评审模型 | `agent-review-service/.env`（`REVIEW_MODE` / `AI_API_KEY_SINGLE` / `AI_BASE_URL_SINGLE` / `AI_REVIEW_MODEL_SINGLE`），无需改代码 |
 | 修改离线批量流程 | `agent-review-service/batch/`（`orchestrator.py` / `arena_client.py` / `cli.py`） |
 | 修改匿名化行为 | `BattleServiceImpl.buildBattleVO()` + `battle.html` + `history.html` |
 | 修改投票人追溯/脱敏逻辑 | `BattleController.desensitize*()` + `BattleServiceImpl.loadBattleVote()/vote()` + `BattleMapper.selectHistoryPage` + `VoteMapper.selectVotePage` + `BattleVoteVO`/`AdminVoteItemVO` |
@@ -719,11 +741,141 @@ python -m batch.cli status                                       # 查看任务�
 | 修改认证逻辑 | `AuthInterceptor.java` + `JwtUtils.java` + `WebConfig.java` |
 | 修改前端页面 | `templates/*.html`（注意 base.html 是公共布局） |
 | 修改缓存策略 | `CacheService.java` |
+| 修改偏好数据集导出 | `controller/AdminController.java`（`/api/admin/export/dataset.zip`）+ `service/ExportService(Impl).java` + `dto/request/ExportQuery.java` + `templates/admin.html`（数据导出 Tab） |
 | 新增模型字段 | `Model.java` + `models` 表 + `AddModelRequest.java` + `LeaderboardVO.java` + `admin.html` |
 
 ---
 
 ## 十五、版本变更记录
+
+### v2.17.3 (2026-05-11) — 偏好数据集导出跨境慢优化（剔除 LONGTEXT + 并发拉图）
+
+- **现象**：4 条 voted 数据导出耗时 ~11s，单看代码逻辑根本不应该这么慢。
+- **根因实测**：
+  - app 服务器（`8.219.130.23`，阿里云海外）↔ MySQL（`180.76.229.245`，百度云国内）`ping` RTT = **207ms**，跨境跨云链路。
+  - `ExportServiceImpl.writeJsonl` 第一遍批量拉 task 用了 `taskMapper.selectBatchIds(taskIds)`，MyBatis-Plus 默认 `select *` 把 `tasks.images_json`（LONGTEXT，每条最多 ~5MB base64）一并跨境拉回；
+  - 第二遍打包图片时 `taskMapper.selectById(taskId)` 又把同一字段再拉一次。
+  - 4 条数据 ≈ 20MB base64 × 2 遍 = 40MB 跨境，加上 RTT 串行叠加，正好 ~11s。
+- **改动文件**：仅 `src/main/java/com/edu/arena/service/impl/ExportServiceImpl.java`。
+- **核心优化**：
+  1. **第一遍排除 LONGTEXT 列**：批量拉 task 改用 `taskMapper.selectList(new LambdaQueryWrapper<Task>().select(Task::getId, Task::getUserId, Task::getEssayTitle, Task::getEssayContent, Task::getGradeLevel, Task::getRequirements, Task::getHasImages, Task::getImageCount, Task::getCreatedAt).in(Task::getId, taskIds))`，**显式不取 `images_json`**。jsonl 阶段只需要 `image_count/has_images` 即可决定文件路径数。
+  2. **第二遍并发拉单条 imagesJson**：新增 `writeImagesParallel(Set<Long> taskIdsWithImages, ZipOutputStream zip)`，使用固定线程池 `IMAGE_FETCH_CONCURRENCY=4`（daemon 线程，名 `export-img-fetch`）一次性 `pool.submit(() -> taskMapper.selectById(taskId).getImagesJson())`，主线程按提交顺序 `future.get()` 串行写 ZIP，**串行 N×RTT 变成 ≈ N/4 × RTT**。注意：并发线程从连接池单独借连接，独立于外层 `@Transactional(readOnly=true)` 的事务连接，结束立即归还，不会触发 HikariCP leak 告警。
+  3. **路径推断方式调整**：新方法 `computeImageRelPathsByCount(Task task)` 仅依赖 `image_count/has_images` 生成 `images/task_{id}/{NN}.jpg` 路径列表（统一标 .jpg）；真实后缀在第二遍解码时由 `detectImageExt(b64)` 按 base64 魔数（`/9j/`→jpg、`iVBOR`→png、`UklGR`→webp、`R0lGOD`→gif）重新决定并写入 ZIP entry。**已知偏差**：jsonl 内 `essay_images` 字段后缀与 ZIP 实际文件后缀可能不一致；消费方应按 `images/task_{id}/{NN}.*` 通配定位。
+  4. **去掉 v2.17.2 的内存缓存**：不再用 `Map<Long,String> taskImagesJson` 缓存原文（既然第一遍根本没拉 imagesJson 回来），改回轻量 `Set<Long> taskIdsWithImages`，内存峰值进一步下降。
+  5. **细粒度耗时日志**：每页输出 `[导出] page=N 拉取耗时 battle(X)=Xms task(Y-noBlob)=Yms vote(Z)=Zms model(W)=Wms`；每个 task 输出 `[导出] task=ID fetch=Ams decode+zip=Bms 写入 K 张 解码后字节=...`，下次性能回归可立即定位是 SQL 慢、网络慢还是解码慢。
+- **预期收益**：4 条数据 ~11s → ~2s（第一遍少传 ~20MB base64 / 第二遍 4 路并发把 4×0.5s = 2s 的 LONGTEXT 拉取压成 ~0.5s）；数据量越大、图片越多收益越显著（线性 → 1/4）。
+- **未触动**：`@Transactional(readOnly=true, timeout=1800)`、`StreamingResponseBody`、Nginx/异步超时配置、ZIP 顺序（仍是 data.jsonl → images → manifest）、对外接口/响应结构均无变化，前端无感。
+- **后续可选优化**（本次未做）：① 把 `tasks.images_json` 拆到独立表或对象存储 URL，根治跨境 LONGTEXT 传输；② 给前端加下载进度条（需新增 `/api/admin/export/preview` 估算总字节 + `fetch` 监听 `received/total`）。
+
+### v2.17 (2026-05-11) — 偏好数据集导出接口重做（仅保留 ZIP 主接口）
+
+- **背景**：旧的 `GET /api/admin/export/preference`（JSON）/ `GET /api/admin/export/jsonl` 仅返回 5 个字段（`battleId / modelA(主键ID) / modelB(主键ID) / result / createdAt`），下游既不知道是哪个模型、也拿不到作文/批改/六维度评分；实现上 `ModelServiceImpl.exportPreferenceJson/Jsonl` 直接 `battleMapper.selectList(null)` 一次性拉全表 → 序列化为字符串 → `getBytes()` 返回，体量大就 OOM；且不过滤脏数据，会把 `generating / ready / failed` 也导出去。
+- **目标**：用一个**唯一主接口**完整覆盖训练/标注/分析三类用户需求，强制只导 `voted` 数据，可流式应对大库存。
+- **改动**：
+  - **删除接口**：`/api/admin/export/preference`、`/api/admin/export/jsonl` 整体移除；`ModelService` 与 `ModelServiceImpl` 同步删除 `exportPreferenceJson()` / `exportPreferenceJsonl()` 两个方法及残留 `cn.hutool.json.JSONUtil`、`Battle`、`HashMap`/`Map` 导入。
+  - **新增主接口**：`GET /api/admin/export/dataset.zip`，唯一导出端点，admin 鉴权。
+  - **新增 DTO**：`dto/request/ExportQuery.java`（`winner / modelId / startDate / endDate / battleId / includeImages / limit`，全部可选）。
+  - **新增服务**：`service/ExportService.java` + `service/impl/ExportServiceImpl.java`。
+  - **前端重做**：`templates/admin.html` 「数据导出」Tab 改为下拉/日期/复选框筛选 + `fetch + Blob` 携 JWT 下载（旧 `<a download>` 链接无法带 token）。
+- **导出 ZIP 包结构**：
+  ```
+  preference_export_yyyyMMdd_HHmmss.zip
+  ├── manifest.json   # schema_version / exported_at / total_battles / total_images / include_images / filter
+  ├── data.jsonl      # 每行一条 battle 完整数据
+  └── images/
+      └── task_{taskId}/01.jpg, 02.jpg, ...   # 按 task 去重，多场 battle 共享只存一份
+  ```
+- **`data.jsonl` 单行 schema（`schema_version=1.0`）**：
+  - `battle`: `battle_id / status / match_type / display_order / created_at / winner / error_message`
+  - `task`: `task_id / essay_title / essay_content / grade_level / requirements / has_images / image_count / essay_images[]`（`essay_images` 是相对路径数组，指向 ZIP 内 `images/task_{id}/...`）
+  - `model_a` / `model_b`: `id / model_id / name / company`（既给 DB 主键又给 `model_id` 字符串，下游可读）
+  - `responses`: `response_a / response_b`（A、B 模型完整批改原文）
+  - `vote`: `vote_id / voter_user_id / winner / dimensions{theme,imagination,logic,language,writing,overall}{winner,reason} / vote_time_seconds / elo{a_before,a_after,b_before,b_after} / created_at`
+- **关键工程要点**：
+  - **强制只导 `status=voted`**：在 `LambdaQueryWrapper` 中硬编码 `eq("status", "voted")`，脏数据永不外泄。
+  - **分页 200 条/页**：`battleMapper.selectPage(...)`，避免一次性加载全表。
+  - **临时文件落 jsonl**：先把所有行写到 `Files.createTempFile(...)`，最后再整体放进 ZIP；不然 `ZipOutputStream` 同时只能写一个 entry，jsonl 写一半要切去写图片就会破坏 entry 结构；finally 删除临时文件。
+  - **图片不缓存到内存**：第一遍只把"有图片的 task_id"收集成 `LinkedHashSet<Long>`；第二遍按 task_id 单条 `taskMapper.selectById(...)` → 解析 `imagesJson` → `Base64.decode` → 直接 `zip.write(bin)`；写完即释放。
+  - **每页处理完后释放大对象**：`taskMap.values().forEach(t -> t.setImagesJson(null))` 主动置空 LONGTEXT 字段。
+  - **图片格式探测**：从 base64 头/魔数（`/9j/`→jpg、`iVBOR`→png、`UklGR`→webp、`R0lGOD`→gif）选后缀，未识别回退 `.jpg`。
+  - **流式下载**：Controller 返回 `StreamingResponseBody`，`Content-Disposition: attachment; filename=preference_export_yyyyMMdd_HHmmss.zip`。
+  - **Jackson**：`ExportServiceImpl` 内置 ObjectMapper 与 `JacksonConfig` 对齐（`SNAKE_CASE` + `JavaTimeModule`），不复用全局 mapper 避免被请求/响应序列化策略干扰。
+  - **N+1 防护**：每页内 `taskMapper.selectBatchIds` / `voteMapper.selectList(in battleIds)` / `modelMapper.selectBatchIds` 批量预取；同一场对战取最早一条 vote（与 `BattleServiceImpl.loadBattleVote` 一致）。
+- **过滤参数（Query）**：
+  | 参数 | 说明 |
+  | --- | --- |
+  | `winner` | A/B/tie，缺省不过滤 |
+  | `modelId` | 限定参与方（A 或 B 任一匹配即纳入），可传 DB 主键 ID 或 `models.model_id` 字符串；后者会自动 lookup 主键，找不到则强制空集 |
+  | `startDate` / `endDate` | 按 `battles.created_at` 闭区间，`endDate` 内部下推到次日 00:00 不含；格式 `yyyy-MM-dd` |
+  | `battleId` | 精确导出某条 |
+  | `includeImages` | 默认 `true`；设 `false` 时 ZIP 内不打 `images/` 目录，仅 `data.jsonl` 内仍保留路径引用便于核对 |
+  | `limit` | 最多导出条数；<=0 或缺省不限 |
+- **影响面**：
+  - **DB schema**：零变更；`essay_images` 表仍保持预留（实际图片仍以 base64 在 `tasks.images_json` 中）。
+  - **缓存**：零变更。
+  - **鉴权**：维持 admin 强校验（`AdminController.checkAdmin()`）。
+  - **下游消费**：旧 5 字段 JSON/JSONL 不再可用；如果有外部 cron 在依赖 `/api/admin/export/preference`，需要切换到 `/api/admin/export/dataset.zip`。
+- **文件清单**：
+  - 新增：`dto/request/ExportQuery.java`、`service/ExportService.java`、`service/impl/ExportServiceImpl.java`。
+  - 修改：`controller/AdminController.java`（删两端点、加一个 ZIP 端点、注入 `ExportService`）、`service/ModelService.java`（删两个方法）、`service/impl/ModelServiceImpl.java`（删实现 + 清未用 import）、`templates/admin.html`（导出 Tab 重做 + `downloadExportZip` / `resetExportFilters` 两个 JS 函数）。
+- **快速验证**：
+  ```bash
+  # 1. 编译
+  mvn -q compile -DskipTests   # 已通过
+  # 2. 运行后获取管理员 JWT
+  TOKEN=$(curl -s -X POST http://localhost:5001/api/login \
+       -H 'Content-Type: application/json' \
+       -d '{"username":"admin","password":"admin123"}' | jq -r .data.token)
+  # 3. 全量导出（含图片）
+  curl -fSL -H "Authorization: Bearer $TOKEN" \
+       'http://localhost:5001/api/admin/export/dataset.zip' \
+       -o preference_export.zip
+  # 4. 仅导 A 胜 + 不打图片 + 限 100 条
+  curl -fSL -H "Authorization: Bearer $TOKEN" \
+       'http://localhost:5001/api/admin/export/dataset.zip?winner=A&includeImages=false&limit=100' \
+       -o preference_export_top100.zip
+  # 5. 查看
+  unzip -l preference_export.zip
+  ```
+
+#### v2.17.1 (2026-05-11) — HikariCP 连接泄漏告警修复
+
+- **现象**：调用 `/api/admin/export/dataset.zip` 后约 2 分钟，HikariCP 抛 `Apparent connection leak detected`，调用栈定位到 `ExportServiceImpl.writeJsonl` 内的 `selectBatchIds(...)`。
+- **根因**：`exportZip` 走在 `StreamingResponseBody` 异步线程里，原本未加 `@Transactional`，每次 mapper 调用各自借/还连接；但整个导出过程持续秒级到分钟级，期间长时间持有多次 SqlSession，叠加 `application.yml` 中 `leak-detection-threshold=120000` 的 2 分钟阈值，触发误报告警（并非真正资源泄漏）。
+- **修复**：
+  1. **加只读事务**：`ExportServiceImpl.exportZip(...)` 增加 `@Transactional(readOnly = true, timeout = 1800)`，让一次导出只持有一段连续 SqlSession，结束后由事务统一释放。
+  2. **放宽 leak 阈值**：`application.yml` 中 `spring.datasource.hikari.leak-detection-threshold` 由 `120000` 调整为 `1800000`（30 分钟，与 `max-lifetime` 同量级），避免对该长任务产生噪声告警；普通业务调用远小于该阈值，不影响其他场景。
+- **验证**：`mvn -q -o compile -DskipTests` 通过；后续导出大批量 voted 数据无 HikariCP 告警。
+
+### v2.16 (2026-05-11) — DeepSeek 单 Agent 评审链路（默认启用）
+
+- **背景**：旧 LangGraph 多 Agent 流程（preprocess×2 + dimension_agent×6 + arbitrator）每场对战会触发约 9~10 次 LLM 调用，AiHubMix 网关多次因调用过密被风控/封禁（参见 v2.15.4 的全量 key 轮换事件）；同时维度 Agent 间缺乏全局视角易出现自相矛盾。
+- **目标**：用 1 次 LLM 调用完成全部评审；调用 DeepSeek 新模型；与旧链路并存可切换。
+- **改动**：
+  - 新增 `agent-review-service/app/review/single_agent.py`：封装"DeepSeek 单 Agent + 固定 5 步 CoT + 严格 JSON 输出 → 解析为 `List[DimensionScore] + ArbitrationResult`"；模型 / base_url / api_key 全部从 settings 读取；缺失维度自动以 `tie` 兜底，winner 与分差不一致时按分差强制修正，final_winner 强约束等于 overall.winner。
+  - `agent-review-service/app/review/prompts.py` 追加 `SINGLE_AGENT_SYSTEM` 与 `single_agent_user(...)`：写明 6 维度 key、0~5 评分准则、tie 阈值、固定 5 步 CoT（通读 A→通读 B→五维对比→overall→自检后输出 JSON）、输出 JSON schema（dimensions 顺序固定）。
+  - `agent-review-service/app/review/service.py` 改造：`ReviewService.__init__` 根据 `settings.review_mode` 决定加载 LangGraph（multi 模式延迟导入）或仅注册 VoteMapper（single 模式）；`arun()` 内按 `_run_single` / `_run_multi` 分支；新增 `_build_report_from_parts` 复用维度合并与 final_winner 决议逻辑。
+  - `agent-review-service/app/settings.py` 新增字段：`review_mode`（默认 `"single"`）、`ai_api_key_single`（DeepSeek key，留空待用户填）、`ai_base_url_single`（默认 `https://api.deepseek.com`）、`ai_review_model_single`（默认 `deepseek-v4-flash`）。原 AiHubMix 相关字段保留供 multi 模式 fallback。
+  - `agent-review-service/.env` 同步新增 `REVIEW_MODE / AI_API_KEY_SINGLE / AI_BASE_URL_SINGLE / AI_REVIEW_MODEL_SINGLE` 4 项，DeepSeek key 留空；附 DeepSeek 控制台申请链接注释。
+  - `agent-review-service/app/review/llm.py` 无需改动 —— 已经是 OpenAI 兼容 `AsyncOpenAI` + `response_format=json_object` + tenacity 重试，可直接连 DeepSeek 端点。
+- **设计取舍**：
+  - 不接 skills / 不接 RAG / 不传作文图片：最大化降低单次调用 token 与风控概率（用户明确选择"全部去掉"）。
+  - 不做 pro 模型 fallback：保持单点最简；如需切 pro 直接改 `AI_REVIEW_MODEL_SINGLE=deepseek-v4-pro`。
+  - 6 维度顺序与 `DimensionKey` 枚举严格一致；模型解析层做了字段容错（数值越界裁剪、winner 大小写归一、evidence 取前 3 条）。
+- **影响面**：
+  - **对外契约（`ReviewResponse` / `VotePayload` / `ReviewReport`）零变更**，Java 端无任何调整。
+  - 旧 LangGraph 节点（`graph.py` / `nodes/*` / 旧 prompts）一行未动；通过 `REVIEW_MODE=multi` 即可完整切回 v2.15 行为。
+  - DeepSeek API key 缺失时，仅 single 链路在调用瞬间抛 `ReviewServiceError`，不影响进程启动与 multi 模式。
+- **使用方式**：
+  ```bash
+  # 在 agent-review-service/.env 中填入 DeepSeek API Key
+  REVIEW_MODE=single                           # 默认；改为 multi 切回旧 LangGraph 流程
+  AI_API_KEY_SINGLE=sk-xxxxxxxx                # DeepSeek 控制台申请
+  AI_BASE_URL_SINGLE=https://api.deepseek.com  # OpenAI 兼容端点
+  AI_REVIEW_MODEL_SINGLE=deepseek-v4-flash     # 或 deepseek-v4-pro
+  ```
+  之后正常 `python -m app.main` / `python -m batch.cli run -i ...` 即可，外部调用方无感切换。
+- **预期收益**：每场对战 LLM 调用从 9~10 次降至 1 次（成本与封禁概率同步下降至原来的 ~10%）；端到端延迟取决于 DeepSeek flash 模型耗时（通常 <10s/场）。
 
 ### v2.15 (2026-05-04) — 泰安市高二期末作文批量评审数据集支持
 - **背景**：需要批量跑通一份特殊来源数据（泰安市高二年级期末考试作文扫描件，共 11111 张"背面"图），作文题为"英雄与选择"。图片命名规范：`姓名-学号-正面.jpg` / `姓名-学号-背面.jpg`；本批次仅存在"背面"图且存在约 213 个重名/同学号覆盖、10 个未下完 `.downloading` 文件。原 `gen_dataset.py` 依赖 `resource/*.txt` 评分清单，不适用此场景。

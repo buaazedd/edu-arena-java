@@ -24,7 +24,11 @@ spring:
       idle-timeout: 300000
       connection-timeout: 30000
       max-lifetime: 1800000
-      leak-detection-threshold: 120000
+      # 连接泄漏告警阈值：30 分钟。
+      # 偏好数据集导出（/api/admin/export/dataset.zip）会在单个只读事务内
+      # 持有连接较久（流式拼装 ZIP + 大量图片解码写盘），把阈值从原来的 120s
+      # 放宽到 1800s，避免对该长任务产生噪声告警；普通业务调用远小于该阈值。
+      leak-detection-threshold: 1800000
       validation-timeout: 5000
       keepalive-time: 300000
   
@@ -57,7 +61,7 @@ jwt:
 
 # AI API配置
 ai:
-  api-key: sk-u9ycJyefdqXQ2gpf8fC3F1756b03468e9dE6Bc8bA26fE7Fd
+  api-key: sk-yYIKRLtlN1DXqZsA919a11Ea4fD040F1A6F013Cb8e22C220
   base-url: https://api.aihubmix.com/v1/chat/completions
 
 # Knife4j配置
